@@ -24,5 +24,11 @@ spec:
         externalTrafficPolicy: Local
       metrics:
         enabled: false  # Disable metrics since we don't have Prometheus Operator yet
+      # Configure default backend
+      defaultBackend:
+        enabled: true
+        name: default-backend
+        port:
+          number: 80
       # Required for K3s
       kubeletPath: /var/lib/rancher/agent/kubelet/standalone/kubelet.sock
