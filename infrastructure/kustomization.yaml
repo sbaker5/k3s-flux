@@ -5,8 +5,8 @@ namespace: infrastructure
 
 resources:
   - namespace.yaml
-  # Add infrastructure components here
-  # - nginx-ingress/
+  # Infrastructure components
+  - nginx-ingress/
   # - cert-manager/
   # - monitoring/
   # - storage/
