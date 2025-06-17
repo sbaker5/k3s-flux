@@ -44,8 +44,15 @@
     - [x] Verify pod deployment
     - [x] Check service creation (NodePort 30080/30443)
     - [x] Test basic HTTP access (404 response confirms Nginx is running)
-  - [ ] Configure default backend
+  - [x] Deploy default backend for Nginx Ingress
+  - [x] Configure default backend health checks
+    - [x] Update deployment to use TCP probes
+    - [x] Test health check functionality
+    - [x] Document the configuration
   - [ ] Set up basic routing rules
+    - [ ] Create example application deployment
+    - [ ] Create Ingress resource for the example application
+    - [ ] Test routing to the example application
   - [ ] (Future) Enable ServiceMonitor in Phase 6 with Prometheus
 
 ## Phase 4: Application Management
@@ -75,10 +82,10 @@
   - [ ] Configure alerts
 
 ## Current Goal
-Configure default backend for Nginx Ingress
+Set up basic routing rules for the Nginx Ingress
 
 ## Next Steps
-1. Create a simple default backend deployment and service
-2. Configure Nginx Ingress to use the default backend
-3. Test the default backend response
+1. Create an example application deployment
+2. Create an Ingress resource for the example application
+3. Test routing to the example application
 4. Document the default backend configuration
