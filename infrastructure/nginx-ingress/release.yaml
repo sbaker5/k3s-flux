@@ -22,7 +22,7 @@ spec:
       metrics:
         enabled: true
         serviceMonitor:
-          enabled: true
+          enabled: false  # Disable ServiceMonitor for now
       podAnnotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "10254"
