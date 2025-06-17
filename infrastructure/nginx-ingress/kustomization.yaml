@@ -3,8 +3,9 @@ kind: Kustomization
 resources:
   - helm-repository.yaml
   - release.yaml
+  - default-backend.yaml
 
-# Patch the HelmRelease to update default backend health checks
+# Patch the HelmRelease to use our custom default backend
 patches:
   - path: helmrelease-patch.yaml
     target:

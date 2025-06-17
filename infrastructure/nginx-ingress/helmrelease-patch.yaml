@@ -6,21 +6,8 @@ metadata:
 spec:
   values:
     controller:
+      # Disable the default backend that comes with the chart
       defaultBackend:
-        # Configure default backend to use TCP probe
-        livenessProbe:
-          failureThreshold: 3
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          successThreshold: 1
-          tcpSocket:
-            port: 8080
-          timeoutSeconds: 5
-        readinessProbe:
-          failureThreshold: 3
-          initialDelaySeconds: 5
-          periodSeconds: 10
-          successThreshold: 1
-          tcpSocket:
-            port: 8080
-          timeoutSeconds: 5
+        enabled: false
+      # Configure the default backend service
+      defaultBackendService: infrastructure/default-backend
