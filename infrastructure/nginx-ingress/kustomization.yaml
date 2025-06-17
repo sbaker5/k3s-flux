@@ -3,3 +3,10 @@ kind: Kustomization
 resources:
   - helm-repository.yaml
   - release.yaml
+
+# Patch the HelmRelease to update default backend health checks
+patches:
+  - path: helmrelease-patch.yaml
+    target:
+      kind: HelmRelease
+      name: nginx-ingress
