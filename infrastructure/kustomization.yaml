@@ -7,7 +7,6 @@ resources:
   - namespace.yaml
   # Infrastructure components
   - nginx-ingress/
-  - default-backend/
   # - cert-manager/
   # - monitoring/
   # - storage/
