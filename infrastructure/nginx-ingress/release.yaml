@@ -17,14 +17,12 @@ spec:
   values:
     controller:
       service:
-        type: LoadBalancer
+        type: NodePort
+        nodePorts:
+          http: 30080
+          https: 30443
         externalTrafficPolicy: Local
       metrics:
-        enabled: true
-        serviceMonitor:
-          enabled: false  # Disable ServiceMonitor for now
-      podAnnotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "10254"
+        enabled: false  # Disable metrics since we don't have Prometheus Operator yet
       # Required for K3s
       kubeletPath: /var/lib/rancher/agent/kubelet/standalone/kubelet.sock
