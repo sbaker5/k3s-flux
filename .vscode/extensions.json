@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "eamodio.gitlens",
+    "hashicorp.terraform",
+    "budparr.kubernetes-templates",
+    "ms-vscode-remote.remote-containers"
+  ]
+}
