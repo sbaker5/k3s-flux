@@ -10,6 +10,8 @@ resources:
   # - cert-manager/
   # - monitoring/
   # - storage/
+  # Example application
+  - ../apps/example-app/
 
 commonLabels:
   app.kubernetes.io/part-of: infrastructure
