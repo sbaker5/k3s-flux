@@ -18,6 +18,18 @@ spec:
         name: prometheus-community
         namespace: monitoring
       interval: 1h
+  install:
+    createNamespace: true
+    disableWait: false
+    disableWaitForJobs: false
+    disableHooks: false
+    timeout: 10m
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      remediateLastFailure: true
+    timeout: 10m
   values:
     # Disable default dashboards to reduce resource usage
     # We'll import the Longhorn dashboard specifically
