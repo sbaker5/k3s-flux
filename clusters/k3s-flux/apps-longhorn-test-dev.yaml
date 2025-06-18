@@ -1,0 +1,30 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: longhorn-test-dev
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: longhorn-test
+    app.kubernetes.io/instance: longhorn-test-dev
+    app.kubernetes.io/part-of: storage-test
+    app.kubernetes.io/managed-by: flux
+spec:
+  interval: 5m
+  path: ./apps/longhorn-test/overlays/dev
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  validation: client
+  timeout: 2m
+  dependsOn:
+    - name: longhorn
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: longhorn-test-dev
+      namespace: storage-test-dev
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      name: longhorn-test-pvc-dev
+      namespace: storage-test-dev

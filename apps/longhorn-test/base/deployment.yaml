@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: longhorn-test
+  labels:
+    app: longhorn-test
+    app.kubernetes.io/name: longhorn-test
+    app.kubernetes.io/part-of: storage-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: longhorn-test
+  template:
+    metadata:
+      labels:
+        app: longhorn-test
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:stable-alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: persistent-storage
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: longhorn-test-pvc

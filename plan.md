@@ -152,7 +152,19 @@
 - [x] Document environment-specific configurations
 - [x] Create troubleshooting guide
 
-## Phase 5: Security & Secrets
+## Phase 5: Storage with Longhorn
+- [x] Set up Longhorn distributed storage
+  - [x] Clean up existing Longhorn installation
+  - [x] Create Longhorn namespace and RBAC
+  - [x] Configure Longhorn Helm repository
+  - [x] Deploy Longhorn using HelmRelease
+  - [ ] Verify Longhorn installation and storage classes
+  - [ ] Set Longhorn as default StorageClass
+  - [ ] Test persistent volume provisioning
+  - [ ] Configure backup target
+  - [ ] Document Longhorn setup and usage
+
+## Phase 6: Security & Secrets
 - [ ] Implement SOPS for secrets management
   - [ ] Set up encryption keys
   - [ ] Configure Flux for decryption
@@ -171,31 +183,31 @@
   - [ ] Configure alerts
 
 ## Current Goal
-Implement Monitoring and Observability
+Set up Longhorn Distributed Storage
 
-## Next Steps for Monitoring
-1. Deploy Prometheus stack using Helm
-   - Install Prometheus Operator
-   - Configure persistent storage
-   - Set up service monitors
+## Next Steps for Longhorn
+1. Verify Longhorn installation
+   - Check pod status in longhorn-system namespace
+   - Verify all Longhorn components are running
+   - Check logs for any errors
 
-2. Configure Grafana dashboards
-   - Deploy Grafana
-   - Import standard Kubernetes dashboards
-   - Set up data sources
+2. Configure Storage
+   - Verify storage classes are created
+   - Set Longhorn as default storage class
+   - Test PVC/PV provisioning
 
-3. Set up alerting
-   - Configure Alertmanager
-   - Define alert rules
-   - Set up notification channels
+3. Set up monitoring
+   - Configure Prometheus service monitors
+   - Set up Longhorn dashboards in Grafana
+   - Configure alerts for storage issues
 
-4. Monitor application metrics
-   - Configure application metrics endpoints
-   - Set up custom dashboards
-   - Monitor resource usage and performance
+4. Configure backups (optional)
+   - Set up backup target (S3, NFS, etc.)
+   - Configure backup schedules
+   - Test backup and restore procedures
 
-5. Document monitoring setup
-   - Create runbooks for common issues
-   - Document alert response procedures
-   - Train team on using monitoring tools
+5. Documentation
+   - Document Longhorn configuration
+   - Create runbooks for common operations
+   - Document backup and restore procedures
 4. Set up dependency management between applications

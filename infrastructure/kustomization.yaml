@@ -8,6 +8,7 @@ resources:
   # Infrastructure components
   - nginx-ingress/
   - longhorn/base/
+  - namespaces/storage-test-namespace.yaml
   # - cert-manager/
   # - monitoring/
 

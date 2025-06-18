@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+nameSuffix: -dev
+
+namespace: storage-test-dev
+
+commonLabels:
+  environment: dev
+  app.kubernetes.io/environment: dev
+
+patches:
+  - target:
+      kind: PersistentVolumeClaim
+      name: longhorn-test-pvc
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: longhorn
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 1Gi
