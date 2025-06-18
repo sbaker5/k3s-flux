@@ -8,3 +8,4 @@ resources:
   - ../../infrastructure/nginx-ingress/
   - ../../infrastructure/longhorn/base/
   - ../../infrastructure/namespaces/storage-test-namespace.yaml
+  - ../../infrastructure/monitoring/base/
