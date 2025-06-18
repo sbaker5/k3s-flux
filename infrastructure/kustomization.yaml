@@ -7,9 +7,9 @@ resources:
   - namespace.yaml
   # Infrastructure components
   - nginx-ingress/
+  - longhorn/base/
   # - cert-manager/
   # - monitoring/
-  # - storage/
 
 commonLabels:
   app.kubernetes.io/part-of: infrastructure

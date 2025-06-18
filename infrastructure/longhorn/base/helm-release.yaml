@@ -1,0 +1,107 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: longhorn
+    app.kubernetes.io/instance: longhorn
+    app.kubernetes.io/managed-by: flux
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: longhorn
+      version: "1.5.1"  # Pinned to a specific version
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+        namespace: flux-system
+      interval: 1h
+  values:
+    # Configure Longhorn to be the default storage class
+    defaultSettings:
+      defaultDataPath: /var/lib/longhorn/
+      defaultReplicaCount: 2
+      defaultDataLocality: best-effort
+      guaranteedEngineManagerCpu: 15  # 15% of system CPU
+      guaranteedReplicaManagerCpu: 15  # 15% of system CPU
+      createDefaultDiskLabeledNodes: true
+      defaultDiskSelector: ["storage=longhorn"]
+      replicaAutoBalance: best-effort
+      backupTarget: ""
+      backupTargetCredentialSecret: ""
+      allowRecurringJobWhileVolumeDetached: true
+      replicaReplenishmentWaitInterval: 600  # 10 minutes
+      concurrentReplicaRebuildPerNodeLimit: 5
+      concurrentVolumeBackupRestorePerNodeLimit: 5
+      systemManagedPodsImagePullPolicy: IfNotPresent
+      allowVolumeCreationWithDegradedAvailability: true
+      autoCleanupSystemGeneratedSnapshot: true
+      
+    # Configure persistence
+    persistence:
+      defaultClass: true
+      defaultFsType: ext4
+      reclaimPolicy: Delete
+      
+    # Configure the UI
+    service:
+      ui:
+        type: ClusterIP
+        nodePort: null
+        annotations: {}
+      
+    # Configure the default storage class
+    defaultSettings:
+      defaultClass: true
+      
+    # Configure the default storage class
+    defaultSettings:
+      defaultDataLocality: best-effort
+      replicaSoftAntiAffinity: true
+      replicaZoneSoftAntiAffinity: true
+      
+    # Configure the default backup target
+    defaultSettings:
+      backupTarget: ""
+      backupTargetCredentialSecret: ""
+      
+    # Configure the default volume settings
+    defaultSettings:
+      defaultReplicaCount: 2
+      defaultDataPath: /var/lib/longhorn/
+      
+    # Configure the default engine settings
+    defaultSettings:
+      guaranteedEngineManagerCpu: 15
+      guaranteedReplicaManagerCpu: 15
+      
+    # Configure the default disk settings
+    defaultSettings:
+      createDefaultDiskLabeledNodes: true
+      defaultDiskSelector: ["storage=longhorn"]
+      
+    # Configure the default backup settings
+    defaultSettings:
+      backupstorePollInterval: 300  # 5 minutes
+      
+    # Configure the default recurring job settings
+    defaultSettings:
+      recurringJobSelector: ["longhorn=backup"]
+      
+    # Configure the default node settings
+    defaultSettings:
+      nodeDownPodDeletionPolicy: do-nothing
+      
+    # Configure the default volume attachment recovery policy
+    defaultSettings:
+      allowVolumeCreationWithDegradedAvailability: true
+      
+    # Configure the default system managed pods
+    defaultSettings:
+      systemManagedPodsImagePullPolicy: IfNotPresent
+      
+    # Configure the default auto cleanup settings
+    defaultSettings:
+      autoCleanupSystemGeneratedSnapshot: true
