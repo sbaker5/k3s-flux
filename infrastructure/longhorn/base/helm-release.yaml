@@ -16,7 +16,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: longhorn
-        namespace: flux-system
+        namespace: infrastructure
       interval: 1h
   values:
     # Configure Longhorn settings
