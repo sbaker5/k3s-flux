@@ -1,0 +1,31 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: longhorn
+    app.kubernetes.io/instance: monitoring
+    app.kubernetes.io/part-of: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  namespaceSelector:
+    matchNames:
+    - longhorn-system
+  endpoints:
+  - port: manager
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+    relabelings:
+    - action: replace
+      sourceLabels: [__meta_kubernetes_pod_node_name]
+      targetLabel: node
+    - action: replace
+      sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - action: replace
+      sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod

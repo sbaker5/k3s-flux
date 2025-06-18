@@ -10,7 +10,7 @@ resources:
   - longhorn/base/
   - namespaces/storage-test-namespace.yaml
   # - cert-manager/
-  # - monitoring/
+  - monitoring/base/
 
 commonLabels:
   app.kubernetes.io/part-of: infrastructure

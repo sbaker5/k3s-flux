@@ -1,0 +1,100 @@
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kube-prometheus-stack
+    app.kubernetes.io/instance: monitoring
+    app.kubernetes.io/part-of: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "55.7.0"  # Pinned version
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 1h
+  values:
+    # Disable default dashboards to reduce resource usage
+    # We'll import the Longhorn dashboard specifically
+    grafana:
+      enabled: true
+      adminPassword: "admin"  # In production, use a secret
+      persistence:
+        enabled: true
+        storageClassName: longhorn
+        size: 10Gi
+      dashboardProviders:
+        dashboardproviders.yaml:
+          apiVersion: 1
+          providers:
+          - name: 'longhorn'
+            orgId: 1
+            folder: 'Longhorn'
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/longhorn
+      dashboards:
+        longhorn:
+          longhorn-dashboard:
+            url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn-grafana-dashboard.json
+            datasource: Prometheus
+      additionalDataSources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-operated.monitoring.svc:9090
+        access: proxy
+        isDefault: true
+
+    # Configure Prometheus
+    prometheus:
+      enabled: true
+      prometheusSpec:
+        retention: 10d
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: longhorn
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 50Gi
+        # Enable service monitor discovery
+        serviceMonitorSelectorNilUsesHelmValues: false
+        serviceMonitorSelector: {}
+        podMonitorSelector: {}
+        ruleSelectorNilUsesHelmValues: false
+        ruleSelector: {}
+        # Scrape config for Longhorn
+        additionalScrapeConfigs:
+        - job_name: 'longhorn-prometheus-servicemonitor'
+          kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names:
+              - longhorn-system
+          relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: longhorn-manager
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: manager
+
+    # Disable alertmanager if not needed
+    alertmanager:
+      enabled: false
+
+    # Disable node exporter if already running on nodes
+    prometheus-node-exporter:
+      enabled: false
+
+    # Disable kube-state-metrics if already running
+    kube-state-metrics:
+      enabled: false
