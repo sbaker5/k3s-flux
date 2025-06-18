@@ -1,0 +1,72 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Include the base configuration
+resources:
+  - ../../base
+
+# Override the namespace
+namespace: example-app-prod
+
+# Set environment-specific labels
+commonLabels:
+  environment: production
+  app.kubernetes.io/environment: production
+
+# Patch the deployment for production
+patches:
+  - patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/strategy/type
+        value: RollingUpdate
+      - op: add
+        path: /spec/strategy/rollingUpdate
+        value:
+          maxSurge: 1
+          maxUnavailable: 0
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 200m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 256Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/livenessProbe/initialDelaySeconds
+        value: 30
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/initialDelaySeconds
+        value: 5
+    target:
+      kind: Deployment
+      name: example-app
+
+# Add production-specific configurations
+configMapGenerator:
+  - name: example-app-config
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - FEATURE_FLAG_CACHE_ENABLED=true
+
+# Enable horizontal pod autoscaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: example-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: example-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

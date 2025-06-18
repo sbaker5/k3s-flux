@@ -1,0 +1,36 @@
+---
+# Development namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: example-app-dev
+  labels:
+    name: example-app-dev
+    environment: dev
+    app.kubernetes.io/name: example-app
+    app.kubernetes.io/part-of: example-app
+    app.kubernetes.io/environment: dev
+---
+# Staging namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: example-app-staging
+  labels:
+    name: example-app-staging
+    environment: staging
+    app.kubernetes.io/name: example-app
+    app.kubernetes.io/part-of: example-app
+    app.kubernetes.io/environment: staging
+---
+# Production namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: example-app-prod
+  labels:
+    name: example-app-prod
+    environment: production
+    app.kubernetes.io/name: example-app
+    app.kubernetes.io/part-of: example-app
+    app.kubernetes.io/environment: production

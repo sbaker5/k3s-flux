@@ -1,8 +1,30 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
+# Flux components and configuration
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
 
-# Cluster configuration
+# Cluster-wide configurations
 - ../../clusters/k3s-flux/
+
+# Infrastructure components (namespaces, etc.)
+- ../../infrastructure/namespaces.yaml
+- ../../infrastructure/example-app-dev-kustomization.yaml
+- ../../infrastructure/example-app-staging-kustomization.yaml
+- ../../infrastructure/example-app-prod-kustomization.yaml
+
+# Application configurations
+# These will be managed by separate Kustomizations in their respective namespaces
+# to enable better separation of concerns and RBAC
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/managed-by: flux
+  app.kubernetes.io/part-of: k3s-flux
+  kustomize.toolkit.fluxcd.io/name: flux-system
+  kustomize.toolkit.fluxcd.io/namespace: flux-system
+
+# Set the default namespace for resources that don't specify one
+namespace: flux-system

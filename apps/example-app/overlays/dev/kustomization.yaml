@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Include the base configuration
+resources:
+  - ../../base
+
+# Override the namespace
+namespace: example-app-dev
+
+# Set environment-specific labels
+commonLabels:
+  environment: dev
+  app.kubernetes.io/environment: dev
+
+# Patch the deployment for development
+patches:
+  - patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 50m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 128Mi
+    target:
+      kind: Deployment
+      name: example-app
+
+# Add development-specific configurations
+configMapGenerator:
+  - name: example-app-config
+    literals:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
