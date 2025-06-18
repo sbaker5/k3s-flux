@@ -16,7 +16,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: longhorn
-        namespace: infrastructure
+        namespace: longhorn-system  # Updated to match the HelmRepository namespace
       interval: 1h
   values:
     # Configure Longhorn settings
