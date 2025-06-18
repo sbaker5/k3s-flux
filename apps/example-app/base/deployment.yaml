@@ -5,15 +5,22 @@ metadata:
   labels:
     app: example-app
     app.kubernetes.io/part-of: example-app
+    app.kubernetes.io/name: example-app
+    app.kubernetes.io/managed-by: flux
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: example-app
+      app.kubernetes.io/name: example-app
+      app.kubernetes.io/part-of: example-app
   template:
     metadata:
       labels:
         app: example-app
+        app.kubernetes.io/name: example-app
+        app.kubernetes.io/part-of: example-app
+        app.kubernetes.io/managed-by: flux
     spec:
       containers:
       - name: example-app
