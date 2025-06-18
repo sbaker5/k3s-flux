@@ -3,4 +3,8 @@ kind: Kustomization
 resources:
   - example-app-kustomization.yaml
   - apps-longhorn-test-dev.yaml
-  - ../../infrastructure/
+  # Infrastructure components
+  - ../../infrastructure/namespace.yaml
+  - ../../infrastructure/nginx-ingress/
+  - ../../infrastructure/longhorn/base/
+  - ../../infrastructure/namespaces/storage-test-namespace.yaml
