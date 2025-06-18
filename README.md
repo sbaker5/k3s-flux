@@ -2,6 +2,10 @@
 
 This project sets up a local k3s cluster with Flux for GitOps.
 
+## Documentation
+
+- [Nginx Ingress Setup](docs/nginx-ingress-setup.md) - Configuration and usage of the Nginx Ingress Controller
+
 ## Prerequisites
 
 - [k3d](https://k3d.io/) (for local k3s clusters) or k3s installed

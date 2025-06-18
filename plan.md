@@ -82,10 +82,10 @@
   - [ ] Configure alerts
 
 ## Current Goal
-Document the Nginx Ingress setup and plan next steps
+Plan Phase 4: Application Management
 
 ## Next Steps
-1. Document the Nginx Ingress configuration
-2. Document the example application setup
-3. Plan Phase 4: Application Management
-4. Set up the base Kustomize structure for applications
+1. Set up the base Kustomize structure for applications
+2. Create environment overlays (dev, staging, prod)
+3. Configure Flux Kustomization for application deployments
+4. Set up dependency management between applications
