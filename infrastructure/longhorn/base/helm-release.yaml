@@ -15,8 +15,8 @@ spec:
       version: "1.5.1"  # Pinned to a specific version
       sourceRef:
         kind: HelmRepository
-        name: longhorn
-        namespace: longhorn-system  # Updated to match the HelmRepository namespace
+        name: longhorn-longhorn  # Updated to match the actual HelmRepository name
+        namespace: longhorn-system
       interval: 1h
   values:
     # Configure Longhorn settings
