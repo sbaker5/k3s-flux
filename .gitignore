@@ -41,3 +41,12 @@ logs
 # Local development
 *.bak
 *.tmp
+
+# Sensitive files and directories
+flux-ssh-keys/
+flux-system.json
+flux-system-modified.json
+
+# Temporary files
+*.yaml.bak
+*.yaml.tmp
