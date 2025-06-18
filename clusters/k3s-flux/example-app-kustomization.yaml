@@ -3,6 +3,10 @@ kind: Kustomization
 metadata:
   name: example-app
   namespace: flux-system
+  labels:
+    app.kubernetes.io/name: example-app
+    app.kubernetes.io/part-of: example-app
+    app.kubernetes.io/managed-by: flux
 spec:
   interval: 5m
   path: ./apps/example-app/base
@@ -10,5 +14,6 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
+    namespace: flux-system
   targetNamespace: default
-  wait: true
+  timeout: 2m
