@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0servicemonitorCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0prometheusruleCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0alertmanagerConfigCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0podmonitorCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0probeCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0prometheusagentCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0alertmanagerCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0prometheusCustomResourceDefinition.yaml
+  - https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/v0.14.0/manifests/setup/0thanosrulerCustomResourceDefinition.yaml
+
+# Common labels to apply to all resources
+commonLabels:
+  app.kubernetes.io/name: monitoring
+  app.kubernetes.io/instance: monitoring
+  app.kubernetes.io/managed-by: flux
+  app.kubernetes.io/part-of: k3s-flux

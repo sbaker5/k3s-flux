@@ -18,3 +18,7 @@ namePrefix: monitoring-
 
 # Set the namespace for all resources
 namespace: monitoring
+
+# Dependencies for CRDs
+configurations:
+  - kustomizeconfig.yaml

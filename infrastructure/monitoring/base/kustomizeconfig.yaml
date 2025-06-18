@@ -1,0 +1,14 @@
+nameReference:
+- kind: ServiceMonitor
+  version: v1
+  fieldSpecs:
+  - kind: Prometheus
+    path: spec/serviceMonitorSelector/matchLabels
+    create: true
+  - kind: Prometheus
+    path: spec/additionalScrapeConfigs/kubernetes_sd_configs/namespaces/names
+    create: true
+
+varReference:
+- path: metadata/annotations
+  kind: ServiceMonitor
