@@ -49,10 +49,10 @@
     - [x] Update deployment to use TCP probes
     - [x] Test health check functionality
     - [x] Document the configuration
-  - [ ] Set up basic routing rules
-    - [ ] Create example application deployment
-    - [ ] Create Ingress resource for the example application
-    - [ ] Test routing to the example application
+  - [x] Set up basic routing rules
+    - [x] Create example application deployment
+    - [x] Create Ingress resource for the example application
+    - [x] Test routing to the example application
   - [ ] (Future) Enable ServiceMonitor in Phase 6 with Prometheus
 
 ## Phase 4: Application Management
@@ -82,10 +82,10 @@
   - [ ] Configure alerts
 
 ## Current Goal
-Set up basic routing rules for the Nginx Ingress
+Document the Nginx Ingress setup and plan next steps
 
 ## Next Steps
-1. Create an example application deployment
-2. Create an Ingress resource for the example application
-3. Test routing to the example application
-4. Document the default backend configuration
+1. Document the Nginx Ingress configuration
+2. Document the example application setup
+3. Plan Phase 4: Application Management
+4. Set up the base Kustomize structure for applications
