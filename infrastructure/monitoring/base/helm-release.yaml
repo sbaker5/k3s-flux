@@ -31,8 +31,15 @@ spec:
       remediateLastFailure: true
     timeout: 10m
   values:
-    # Disable default dashboards to reduce resource usage
-    # We'll import the Longhorn dashboard specifically
+    # Install CRDs
+    crds:
+      create: true
+      install: true
+
+    # Namespace to install CRDs into (default is the release namespace)
+    crdsNamespace: monitoring
+
+    # Grafana configuration
     grafana:
       enabled: true
       adminPassword: "admin"  # In production, use a secret
@@ -64,7 +71,7 @@ spec:
         access: proxy
         isDefault: true
 
-    # Configure Prometheus
+    # Prometheus configuration
     prometheus:
       enabled: true
       prometheusSpec:
@@ -80,9 +87,13 @@ spec:
         # Enable service monitor discovery
         serviceMonitorSelectorNilUsesHelmValues: false
         serviceMonitorSelector: {}
+        serviceMonitorNamespaceSelector: {}
+        podMonitorSelectorNilUsesHelmValues: false
         podMonitorSelector: {}
+        podMonitorNamespaceSelector: {}
         ruleSelectorNilUsesHelmValues: false
         ruleSelector: {}
+        ruleNamespaceSelector: {}
         # Scrape config for Longhorn
         additionalScrapeConfigs:
         - job_name: 'longhorn-prometheus-servicemonitor'
@@ -99,9 +110,19 @@ spec:
             action: keep
             regex: manager
 
-    # Disable alertmanager if not needed
+    # Alertmanager configuration (disabled by default)
     alertmanager:
       enabled: false
+      alertmanagerSpec:
+        retention: 120h
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: longhorn
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
 
     # Disable node exporter if already running on nodes
     prometheus-node-exporter:
@@ -110,3 +131,14 @@ spec:
     # Disable kube-state-metrics if already running
     kube-state-metrics:
       enabled: false
+
+    # Disable components we don't need
+    prometheusOperator:
+      tls:
+        enabled: false
+      admissionWebhooks:
+        enabled: false
+      tlsProxy:
+        enabled: false
+      kubeletService:
+        enabled: false
