@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloud-init
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloud-init-configs
+  namespace: cloud-init
+data:
+  k3s2: |
+    #cloud-config
+    hostname: k3s2
+    preserve_hostname: true
+    
+    packages:
+      - open-iscsi
+      - jq
+      - curl
+      - wget
+    
+    runcmd:
+      - systemctl enable --now iscsid
+      - sgdisk --zap-all /dev/sdb || true
+      - wipefs -a /dev/sdb
+      - parted /dev/sdb mklabel gpt --script
+      - parted -a opt /dev/sdb mkpart primary 0% 100%
+      - mkfs.ext4 /dev/sdb1
+      - mkdir -p /mnt/longhorn/disk1
+      - echo "/dev/sdb1 /mnt/longhorn/disk1 ext4 defaults 0 0" >> /etc/fstab
+      - mount -a
+      - curl -sfL https://get.k3s.io | K3S_URL=https://192.168.86.71:6443 K3S_TOKEN=K10b4f6a5b5c5d5e5f5g5h5i5j5k5l5m5n5o5p5q5r5s5t5u5v5w5x5y5z::server:abc123 sh -
+      - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) node.longhorn.io/create-default-disk=config
+      - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) storage=longhorn
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-init-server
+  namespace: cloud-init
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloud-init-server
+  template:
+    metadata:
+      labels:
+        app: cloud-init-server
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: configs
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: configs
+        configMap:
+          name: cloud-init-configs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-init-server
+  namespace: cloud-init
+  labels:
+    app: cloud-init-server
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30090
+  selector:
+    app: cloud-init-server

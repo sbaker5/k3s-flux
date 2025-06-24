@@ -1,0 +1,30 @@
+spec:
+  disks:
+    default-disk-1ce5f99de6c0284:
+      allowScheduling: false
+      diskType: filesystem
+      evictionRequested: false
+      path: /var/lib/longhorn/
+      storageReserved: 6287233843
+      tags: []
+    disk-sdf1:
+      allowScheduling: true
+      diskType: filesystem
+      evictionRequested: false
+      path: /mnt/longhorn/diskf
+      storageReserved: 0
+      tags: []
+    disk-sdg1:
+      allowScheduling: true
+      diskType: filesystem
+      evictionRequested: false
+      path: /mnt/longhorn/diskg
+      storageReserved: 0
+      tags: []
+    disk-sdh1:
+      allowScheduling: true
+      diskType: filesystem
+      evictionRequested: false
+      path: /mnt/longhorn/diskh
+      storageReserved: 0
+      tags: []

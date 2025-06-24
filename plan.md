@@ -154,50 +154,138 @@
 
 ## Phase 5: Storage with Longhorn
 
-### 5.1. Prerequisites and Node Preparation
-- [x] Clean up existing Longhorn installation
-- [x] Verify node requirements (open-iscsi, nfs-common, etc.)
-- [x] Label nodes for Longhorn scheduling
-- [x] Configure node disk scheduling settings
+### 5.1. k3s1 Node Disk Preparation (Completed)
+- [x] SSH into k3s1: `ssh user@192.168.86.71`
+- [x] Identify available disks: `lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL`
+  - Identified disks: sdf, sdg, sdh (465.8GB each)
+- [x] Document current disk configuration
+- [x] Prepare disks for Longhorn (destructive operation):
+  - [x] Remove existing partitions: `sudo sgdisk --zap-all /dev/sdX`
+  - [x] Wipe filesystem signatures: `sudo wipefs -a /dev/sdX`
+  - [x] Create GPT partition table: `sudo parted /dev/sdX mklabel gpt --script`
+  - [x] Create primary partition: `sudo parted -a opt /dev/sdX mkpart primary 0% 100%`
+  - [x] Format partition: `sudo mkfs.ext4 /dev/sdX1`
+- [x] Create mount points: `/mnt/longhorn/disk{f,g,h}`
+- [x] Configure `/etc/fstab` for persistent mounts
+- [x] Label node for Longhorn auto-discovery:
+  ```bash
+  kubectl label node k3s1 node.longhorn.io/create-default-disk=config
+  kubectl label node k3s1 storage=longhorn
+  ```
 
-### 5.2. Helm Repository and Release Configuration
+### 5.2. Enhanced k3s2 Node Provisioning
+- [x] Cloud-init configuration for automated provisioning
+  - [x] Raw disk preparation for Longhorn (no filesystem)
+  - [x] DNS-based K3s master discovery (k3s1.local)
+  - [x] Secure token management with SOPS
+  - [x] Automated Longhorn disk configuration via CRD
+  - [x] Idempotent operations for reliability
+
+### 5.3. Cloud-init Server (Deployed)
+- [x] Nginx server for serving cloud-init configuration
+  - [x] ConfigMap for cloud-init data
+  - [x] NodePort service (30090)
+- [x] CoreDNS for local DNS resolution
+  - [x] k3s1.local → 192.168.86.71
+- [x] Secure token management
+  - [x] SOPS-encrypted K3s token
+  - [x] Secure token retrieval in cloud-init
+
+### 5.4. Verification & Testing
+- [ ] Test k3s2 provisioning
+  - [ ] Boot with cloud-init URL: `http://192.168.86.71:30090/k3s2`
+  - [ ] Verify node joins cluster
+  - [ ] Check Longhorn disk detection
+  - [ ] Test volume scheduling
+- [ ] Validate cross-node functionality
+  - [ ] Create pod on k3s2 with Longhorn volume
+  - [ ] Verify data persistence
+  - [ ] Test pod migration between nodes
+
+### 5.5. Documentation & Recovery
+- [x] Document disk preparation process
+- [x] Create node provisioning guide
+- [x] Document recovery procedures
+  - [x] Master node recovery
+  - [x] Worker node reprovisioning
+  - [x] Full cluster rebuild
+- [x] Update infrastructure diagrams
+- [x] Document token rotation process
+
+### 5.3. Longhorn Configuration
 - [x] Create Longhorn namespace and RBAC
 - [x] Configure Longhorn Helm repository with version pinning (1.5.x)
-- [x] Deploy Longhorn using HelmRelease with production-ready values
+- [x] Deploy Longhorn using HelmRelease with production-ready values:
+  ```yaml
+  defaultSettings:
+    createDefaultDiskLabeledNodes: true
+    defaultDataPath: /var/lib/longhorn/
+    defaultDiskSelector: ["storage=longhorn"]
+    replicaSoftAntiAffinity: true
+    replicaZoneSoftAntiAffinity: true
+  ```
   - [x] Configure default storage settings
   - [x] Set resource requests/limits
   - [x] Enable auto-upgrades for patch versions
   - [x] Configure pruning and dependency management
 
-### 5.3. Verification and Testing
-- [ ] Verify Longhorn installation
-  - [ ] Check all Longhorn pods are running
-  - [ ] Verify CRDs are installed
+### 5.4. Verification and Testing (Completed)
+- [x] Verify Longhorn installation:
+  - [x] Check all Longhorn pods are running: `kubectl get pods -n longhorn-system`
+  - [x] Verify CRDs are installed: `kubectl get crd | grep longhorn`
+  - [x] Access Longhorn UI via port-forward: `kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80`
+- [x] Test storage functionality:
+  - [x] Create test PVC and verify binding
+  - [x] Deploy test pod to write/read data
+  - [x] Verify data persistence across pod restarts
+  - [x] Test volume expansion
+  - [x] Verify replica scheduling across disks
+- [x] Document the setup in `docs/k3s-flux-longhorn-guide.md`
+  - [ ] Verify CRDs are installed: `kubectl get crd | grep longhorn`
   - [ ] Check Longhorn UI accessibility
-- [ ] Test storage functionality
-  - [ ] Create test PVC/PVC
-  - [ ] Verify data persistence
+- [ ] Test storage functionality:
+  - [ ] Create test PVC and verify binding
+  - [ ] Verify data persistence across pod restarts
   - [ ] Test volume expansion
-  - [ ] Verify replica scheduling
+  - [ ] Verify replica scheduling across nodes
+  - [ ] Test node failure scenarios
 
-### 5.4. Backup Configuration
-- [ ] Set up backup target (NFS/S3)
+### 5.5. Multi-Node Configuration
+- [ ] Configure node affinity and anti-affinity
+- [ ] Set up storage classes for different disk types
+- [ ] Configure volume attachment recovery policy
+- [ ] Test cross-node volume migration
+
+### 5.6. Backup Configuration
+- [ ] Set up backup target (NFS/S3):
   - [ ] Configure backup credentials using SOPS
   - [ ] Test backup/restore procedures
   - [ ] Schedule regular backups
   - [ ] Document recovery process
+  - [ ] Set up backup retention policies
 
-### 5.5. Monitoring and Alerting
-- [ ] Configure Prometheus ServiceMonitor
+### 5.7. Monitoring and Alerting
+- [ ] Configure Prometheus ServiceMonitor for Longhorn
 - [ ] Import Longhorn Grafana dashboards
 - [ ] Set up critical alerts for:
-  - [ ] Volume health
-  - [ ] Storage capacity
-  - [ ] Backup failures
-  - [ ] Node disk pressure
+  - [ ] Volume health and status
+  - [ ] Storage capacity and usage
+  - [ ] Backup failures and consistency
+  - [ ] Node disk pressure and I/O performance
+  - [ ] Replication status and consistency
 
-### 5.6. Documentation
-- [ ] Document Longhorn configuration
+### 5.8. Documentation and Runbooks
+- [ ] Document disk preparation process
+- [ ] Create node provisioning guide
+- [ ] Document recovery procedures
+- [ ] Create troubleshooting guide
+- [ ] Document performance tuning recommendations
+
+### 5.9. Future Enhancements
+- [ ] Implement backup target rotation
+- [ ] Set up disaster recovery procedures
+- [ ] Configure storage network isolation
+- [ ] Implement storage policies for different workloads
 - [ ] Create troubleshooting guide
 - [ ] Document backup/restore procedures
 - [ ] Document upgrade procedures
@@ -347,12 +435,41 @@ kubectl describe pod -n longhorn-system <pod-name>
 kubectl get volumes -n longhorn-system
 ```
 
-### 5. Next Steps
-1. Complete verification of Longhorn installation
-2. Configure and test backup solutions
-3. Set up monitoring and alerting
-4. Document procedures and create runbooks
-5. Integrate with application deployments
-   - Create runbooks for common operations
-   - Document backup and restore procedures
-4. Set up dependency management between applications
+## Next Steps
+
+### 1. Deploy Cloud-init Server
+```bash
+# Deploy the cloud-init server
+kubectl apply -k infrastructure/cloud-init
+
+# Verify deployment
+kubectl get pods,svc -n cloud-init
+```
+
+### 2. Provision k3s2 Node
+1. Boot k3s2 with cloud-init URL: `http://192.168.86.71:30090/k3s2`
+2. Monitor k3s2 joining the cluster:
+   ```bash
+   watch kubectl get nodes
+   ```
+3. Verify Longhorn disk detection:
+   ```bash
+   kubectl get nodes.longhorn.io -n longhorn-system
+   ```
+
+### 3. Test Cross-Node Functionality
+- [ ] Schedule test pod on k3s2 with Longhorn volume
+- [ ] Verify data persistence across pod rescheduling
+- [ ] Test volume migration between nodes
+
+### 4. Monitoring & Observability
+- [ ] Deploy Prometheus stack with Flux
+- [ ] Configure Longhorn metrics collection
+- [ ] Set up Grafana dashboards for storage monitoring
+- [ ] Configure alerts for storage capacity and health
+
+### 5. Backup & Disaster Recovery
+- [ ] Configure Longhorn backup target (S3/NFS)
+- [ ] Set up scheduled backups for critical volumes
+- [ ] Document restore procedures
+- [ ] Test backup and restore process

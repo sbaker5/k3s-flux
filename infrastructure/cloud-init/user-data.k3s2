@@ -1,0 +1,53 @@
+#cloud-config
+
+# Set hostname
+hostname: k3s2
+preserve_hostname: true
+
+# Install required packages
+packages:
+  - open-iscsi
+  - jq
+  - curl
+  - wget
+
+# Enable iscsid
+runcmd:
+  # Enable iscsid (required for Longhorn)
+  - systemctl enable --now iscsid
+
+  # Prepare disk for Longhorn (raw, unformatted)
+  - sgdisk --zap-all /dev/sdb || true
+  - wipefs -a /dev/sdb
+  - parted /dev/sdb mklabel gpt --script
+  - parted -a opt /dev/sdb mkpart primary 0% 100%
+  # Note: No filesystem creation - Longhorn will manage the raw device
+
+  # Create mount point for Longhorn (not used directly, but good to have)
+  - mkdir -p /var/lib/longhorn
+  
+  # Install k3s and join cluster
+  - curl -sfL https://get.k3s.io | K3S_URL=https://192.168.86.71:6443 K3S_TOKEN=K10b4f6a5b5c5d5e5f5g5h5i5j5k5l5m5n5o5p5q5r5s5t5u5v5w5x5y5z::server:abc123 sh -
+  
+  # Label node for Longhorn
+  - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) node.longhorn.io/create-default-disk=config
+  - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) storage=longhorn
+  
+  # Add disk to Longhorn
+  - |
+    cat > /tmp/disk-config.yaml << EOF
+    apiVersion: longhorn.io/v1beta2
+    kind: Node
+    metadata:
+      name: $(hostname)
+      namespace: longhorn-system
+    spec:
+      name: $(hostname)
+      disks:
+        default-disk-$(hostname):
+          path: /dev/sdb1
+          allowScheduling: true
+          storageReserved: 0
+          tags: []
+    EOF
+    KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl apply -f /tmp/disk-config.yaml --kubeconfig=/etc/rancher/k3s/k3s.yaml
