@@ -15,7 +15,7 @@ spec:
       version: "55.12.0"  # Latest stable version
       sourceRef:
         kind: HelmRepository
-        name: prometheus-community
+        name: monitoring-prometheus-community
         namespace: monitoring
       interval: 1h
   install:

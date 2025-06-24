@@ -153,16 +153,60 @@
 - [x] Create troubleshooting guide
 
 ## Phase 5: Storage with Longhorn
-- [x] Set up Longhorn distributed storage
-  - [x] Clean up existing Longhorn installation
-  - [x] Create Longhorn namespace and RBAC
-  - [x] Configure Longhorn Helm repository
-  - [x] Deploy Longhorn using HelmRelease
-  - [ ] Verify Longhorn installation and storage classes
-  - [ ] Set Longhorn as default StorageClass
-  - [ ] Test persistent volume provisioning
-  - [ ] Configure backup target
-  - [ ] Document Longhorn setup and usage
+
+### 5.1. Prerequisites and Node Preparation
+- [x] Clean up existing Longhorn installation
+- [x] Verify node requirements (open-iscsi, nfs-common, etc.)
+- [x] Label nodes for Longhorn scheduling
+- [x] Configure node disk scheduling settings
+
+### 5.2. Helm Repository and Release Configuration
+- [x] Create Longhorn namespace and RBAC
+- [x] Configure Longhorn Helm repository with version pinning (1.5.x)
+- [x] Deploy Longhorn using HelmRelease with production-ready values
+  - [x] Configure default storage settings
+  - [x] Set resource requests/limits
+  - [x] Enable auto-upgrades for patch versions
+  - [x] Configure pruning and dependency management
+
+### 5.3. Verification and Testing
+- [ ] Verify Longhorn installation
+  - [ ] Check all Longhorn pods are running
+  - [ ] Verify CRDs are installed
+  - [ ] Check Longhorn UI accessibility
+- [ ] Test storage functionality
+  - [ ] Create test PVC/PVC
+  - [ ] Verify data persistence
+  - [ ] Test volume expansion
+  - [ ] Verify replica scheduling
+
+### 5.4. Backup Configuration
+- [ ] Set up backup target (NFS/S3)
+  - [ ] Configure backup credentials using SOPS
+  - [ ] Test backup/restore procedures
+  - [ ] Schedule regular backups
+  - [ ] Document recovery process
+
+### 5.5. Monitoring and Alerting
+- [ ] Configure Prometheus ServiceMonitor
+- [ ] Import Longhorn Grafana dashboards
+- [ ] Set up critical alerts for:
+  - [ ] Volume health
+  - [ ] Storage capacity
+  - [ ] Backup failures
+  - [ ] Node disk pressure
+
+### 5.6. Documentation
+- [ ] Document Longhorn configuration
+- [ ] Create troubleshooting guide
+- [ ] Document backup/restore procedures
+- [ ] Document upgrade procedures
+
+### 5.7. Integration with Other Components
+- [ ] Configure StorageClass as default
+- [ ] Update application manifests to use Longhorn storage
+- [ ] Test application failover scenarios
+- [ ] Document storage requirements for applications
 
 ## Phase 6: Security & Secrets
 - [ ] Implement SOPS for secrets management
@@ -183,31 +227,132 @@
   - [ ] Configure alerts
 
 ## Current Goal
-Set up Longhorn Distributed Storage
+Complete Longhorn Distributed Storage Implementation
 
-## Next Steps for Longhorn
-1. Verify Longhorn installation
-   - Check pod status in longhorn-system namespace
-   - Verify all Longhorn components are running
-   - Check logs for any errors
+## Implementation Strategy
 
-2. Configure Storage
-   - Verify storage classes are created
-   - Set Longhorn as default storage class
-   - Test PVC/PV provisioning
+### 1. Repository Structure
+```
+infrastructure/
+  longhorn/
+    base/
+      kustomization.yaml
+      namespace.yaml
+      helm-repository.yaml
+      helm-release.yaml
+      backup-secret.sops.yaml  # Encrypted credentials
+    overlays/
+      production/
+        kustomization.yaml
+        values-override.yaml
+```
 
-3. Set up monitoring
-   - Configure Prometheus service monitors
-   - Set up Longhorn dashboards in Grafana
-   - Configure alerts for storage issues
+### 2. Key Configuration Files
 
-4. Configure backups (optional)
-   - Set up backup target (S3, NFS, etc.)
-   - Configure backup schedules
-   - Test backup and restore procedures
+#### 2.1. HelmRepository
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: longhorn
+  namespace: infrastructure
+spec:
+  interval: 1h
+  url: https://charts.longhorn.io
+  type: oci
+  interval: 1h
+```
 
-5. Documentation
-   - Document Longhorn configuration
+#### 2.2. HelmRelease (Key Components)
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2beta2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: longhorn
+      version: 1.5.x  # Auto-update patch versions
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+        namespace: infrastructure
+      interval: 1h
+  values:
+    defaultSettings:
+      defaultDataPath: /var/lib/longhorn/
+      defaultReplicaCount: 2
+      defaultDataLocality: best-effort
+      replicaSoftAntiAffinity: true
+      replicaZoneSoftAntiAffinity: true
+      createDefaultDiskLabeledNodes: true
+      defaultDiskSelector: ["storage=longhorn"]
+      backupTarget: "s3://backup-bucket@us-east-1/"
+      backupTargetCredentialSecret: "longhorn-backup-credentials"
+    persistence:
+      defaultClass: true
+      defaultFsType: ext4
+```
+
+### 3. Verification Steps
+
+#### 3.1. Check Installation
+```bash
+# Verify Helm release
+flux get helmreleases -n longhorn-system
+
+# Check pods
+kubectl get pods -n longhorn-system
+
+# Verify storage classes
+kubectl get storageclass
+```
+
+#### 3.2. Test Storage
+```yaml
+# test-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+### 4. Troubleshooting Guide
+
+#### 4.1. Common Issues
+- **Pods not starting**: Check node requirements and resource constraints
+- **Volume attachment failures**: Verify network connectivity between nodes
+- **Backup failures**: Check credentials and network access to backup target
+
+#### 4.2. Diagnostic Commands
+```bash
+# Check Longhorn manager logs
+kubectl logs -n longhorn-system -l app=longhorn-manager
+
+# Describe failing pods
+kubectl describe pod -n longhorn-system <pod-name>
+
+# Check volume status
+kubectl get volumes -n longhorn-system
+```
+
+### 5. Next Steps
+1. Complete verification of Longhorn installation
+2. Configure and test backup solutions
+3. Set up monitoring and alerting
+4. Document procedures and create runbooks
+5. Integrate with application deployments
    - Create runbooks for common operations
    - Document backup and restore procedures
 4. Set up dependency management between applications
