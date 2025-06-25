@@ -1,23 +1,34 @@
-# Application Management with Kustomize Overlays
+# Application Management with Kustomize and Flux
 
-This document explains the application deployment strategy using Kustomize overlays in this repository, including how to manage environments and implement the "offline until needed" functionality.
+This document outlines the GitOps-based application deployment strategy using Kustomize and Flux in this repository. It covers environment management, Ingress configuration, and resource optimization.
 
 ## Table of Contents
 1. [Overview](#overview)
 2. [Directory Structure](#directory-structure)
 3. [Environment-Specific Configurations](#environment-specific-configurations)
-4. [Offline Until Needed Functionality](#offline-until-needed-functionality)
-5. [Managing Environments](#managing-environments)
-6. [Best Practices](#best-practices)
+4. [Ingress Configuration](#ingress-configuration)
+5. [Offline Until Needed](#offline-until-needed)
+6. [Managing Environments](#managing-environments)
+7. [Best Practices](#best-practices)
+8. [Troubleshooting](#troubleshooting)
 
 ## Overview
 
-This repository uses a GitOps approach with Flux CD and Kustomize for managing Kubernetes applications. The key features include:
+This repository implements a GitOps workflow using Flux CD and Kustomize for managing Kubernetes applications. The architecture is designed for:
 
+- **GitOps Workflow**: All changes are made through Git commits
 - **Environment Isolation**: Separate configurations for dev, staging, and prod
-- **Resource Efficiency**: Ability to scale down non-production environments when not in use
-- **Declarative Configuration**: All configurations are version-controlled in Git
-- **Automated Reconciliation**: Flux CD ensures the cluster state matches the Git repository
+- **Resource Efficiency**: Scale-to-zero for non-production environments
+- **Declarative Configuration**: Infrastructure as Code (IaC) approach
+- **Automated Reconciliation**: Flux CD maintains cluster state
+- **Secure Access**: Ingress-based routing with authentication
+
+### Key Components
+
+1. **Flux CD**: GitOps operator for Kubernetes
+2. **Kustomize**: Template-free YAML customization
+3. **NGINX Ingress**: External access to services
+4. **Longhorn**: Distributed block storage
 
 ## Directory Structure
 
@@ -46,54 +57,161 @@ Each environment has its own overlay with specific configurations:
 
 ### Development (`overlays/dev`)
 - **Purpose**: Local development and testing
-- **Replicas**: 1 (can be scaled to 0 when not in use)
-- **Resource Limits**: Lower than production
+- **Replicas**: 1 (scalable to 0)
+- **Resource Requests/Limits**: 
+  ```yaml
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  ```
 - **Image Tags**: `:dev-latest` or feature branch tags
-- **Debugging Tools**: Additional sidecar containers if needed
+- **Features**:
+  - Debugging sidecars
+  - Local development tooling
+  - No production data
 
 ### Staging (`overlays/staging`)
 - **Purpose**: Pre-production testing
-- **Replicas**: 2-3
-- **Resource Limits**: Similar to production
+- **Replicas**: 2 (fixed)
+- **Resource Requests/Limits**:
+  ```yaml
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  ```
 - **Image Tags**: Release candidates (`:vX.Y.Z-rc.N`)
 - **Data**: Synthetic or anonymized production data
+- **Features**:
+  - Production-like configuration
+  - Performance testing
+  - Integration testing
 
 ### Production (`overlays/prod`)
 - **Purpose**: Live traffic
-- **Replicas**: Auto-scaled based on load
-- **Resource Limits**: Optimized for production workload
+- **Replicas**: 2+ (auto-scaled)
+- **Resource Requests/Limits**:
+  ```yaml
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  ```
 - **Image Tags**: Versioned tags only (`:vX.Y.Z`)
-- **High Availability**: Multiple replicas across nodes
+- **Features**:
+  - High availability
+  - Horizontal Pod Autoscaler (HPA)
+  - Production monitoring
 
-## Offline Until Needed Functionality
+## Ingress Configuration
 
-Non-production environments can be taken offline to save resources when not in use.
+### Basic Ingress Example
+```yaml
+# apps/example-app/base/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /example-app(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: example-app
+            port:
+              number: 80
+```
+
+### Environment-Specific Ingress
+Each environment can have its own Ingress configuration:
+
+```yaml
+# apps/example-app/overlays/dev/ingress-patch.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: example-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Environment "Development" always;
+spec:
+  rules:
+  - host: dev.example.com
+    http:
+      paths:
+      - path: /example-app(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: example-app
+            port:
+              number: 80
+```
+
+## Offline Until Needed
+
+Non-production environments can be scaled down when not in use to save resources.
 
 ### Taking an Environment Offline
 
 1. **Scale Down Application**
    ```bash
-   # Scale down the deployment
-   kubectl scale deployment example-app --replicas=0 -n example-app-dev
+   # Scale down all deployments in the namespace
+   kubectl scale deployment --all --replicas=0 -n example-app-dev
    ```
 
-2. **Suspend Flux Reconciliation (Optional)**
+2. **Suspend Flux Reconciliation**
    ```bash
    # Suspend reconciliation for the environment
    flux suspend kustomization example-app-dev -n flux-system
    ```
 
+3. **Verify Resources**
+   ```bash
+   # Check pod status
+   kubectl get pods -n example-app-dev
+   
+   # Check Flux status
+   flux get kustomizations -n flux-system
+   ```
+
 ### Bringing an Environment Online
 
-1. **Resume Flux Reconciliation (if suspended)**
+1. **Resume Flux Reconciliation**
    ```bash
    flux resume kustomization example-app-dev -n flux-system
    ```
 
 2. **Scale Up Application**
    ```bash
-   # Scale up the deployment
-   kubectl scale deployment example-app --replicas=1 -n example-app-dev
+   # Scale up deployments
+   kubectl scale deployment --all --replicas=1 -n example-app-dev
+   ```
+
+3. **Verify Status**
+   ```bash
+   # Check pod status
+   kubectl get pods -n example-app-dev
+   
+   # Check application logs
+   kubectl logs -n example-app-dev -l app=example-app
    ```
 
 ### Automated Scaling with CronJobs
@@ -193,20 +311,51 @@ spec:
 
 ## Best Practices
 
-1. **Keep Base Configurations Minimal**: Only include common configurations in the base
-2. **Use Meaningful Labels**: Add environment-specific labels for better observability
-3. **Document Changes**: Update documentation when adding new environments or changing configurations
-4. **Test Thoroughly**: Always test changes in dev before promoting to staging/prod
-5. **Monitor Resource Usage**: Keep an eye on cluster resources, especially when bringing environments online
-6. **Automate Where Possible**: Use CI/CD pipelines and automation to manage environments
-7. **Security**: Apply least privilege principles to RBAC and network policies
-8. **Backup**: Ensure critical data is backed up before making significant changes
+### GitOps Workflow
+1. **Branch Strategy**
+   - `main`: Production-ready code
+   - `staging`: Pre-production testing
+   - `feature/*`: New features
+   - `bugfix/*`: Bug fixes
+
+2. **Commit Conventions**
+   ```
+   type(scope): description
+   
+   Detailed description if needed
+   
+   Fixes #issue-number
+   ```
+   
+   Types:
+   - feat: New feature
+   - fix: Bug fix
+   - docs: Documentation changes
+   - style: Code style changes
+   - refactor: Code refactoring
+   - test: Adding tests
+   - chore: Maintenance tasks
+
+### Kubernetes Resources
+1. **Resource Management**
+   - Always set resource requests and limits
+   - Use Quality of Service (QoS) classes
+   - Implement Horizontal Pod Autoscaling (HPA)
+
+2. **Security**
+   - Use NetworkPolicies
+   - Implement Pod Security Standards
+   - Use PodDisruptionBudgets
+   - Enable automatic secret rotation
+
+3. **Monitoring**
+   - Include Prometheus annotations
+   - Configure liveness/readiness probes
+   - Set up logging and metrics
 
 ## Troubleshooting
 
-### Environment Not Updating
-- Check Flux reconciliation status: `flux get kustomizations -A`
-- View logs: `kubectl logs -n flux-system -l app=kustomize-controller`
+### Common Issues
 - Check for errors: `kubectl get events -A --sort-by='.lastTimestamp'`
 
 ### Application Not Starting

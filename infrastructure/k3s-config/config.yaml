@@ -1,0 +1,5 @@
+# k3s server configuration
+# This ensures NodePorts are properly exposed
+kube-proxy-arg: "nodeport-addresses=0.0.0.0/0"
+# Explicitly set the NodePort range to avoid conflicts
+service-node-port-range: "30000-32767"

@@ -468,8 +468,51 @@ kubectl get pods,svc -n cloud-init
 - [ ] Set up Grafana dashboards for storage monitoring
 - [ ] Configure alerts for storage capacity and health
 
-### 5. Backup & Disaster Recovery
-- [ ] Configure Longhorn backup target (S3/NFS)
-- [ ] Set up scheduled backups for critical volumes
-- [ ] Document restore procedures
+### 5. Network Configuration & Access
+
+#### Current Network Setup
+- **k3s1 (192.168.86.71)**
+  - Control Plane + Worker Node
+  - NGINX Ingress Controller (NodePort 30080/30443)
+  - Cloud-init server (NodePort 30090)
+  - Longhorn UI (via NGINX Ingress at `/longhorn`)
+
+#### Working Services
+1. **NGINX Ingress Controller**
+   - HTTP: `http://192.168.86.71:30080`
+   - HTTPS: `https://192.168.86.71:30443`
+
+2. **Longhorn UI**
+   - Access: `http://192.168.86.71:30080/longhorn`
+   - Service: `longhorn-frontend` in `longhorn-system` namespace
+
+3. **Cloud-init Server**
+   - Access: `http://192.168.86.71:30090`
+
+#### Lessons Learned
+1. **What Worked**
+   - Using NGINX Ingress for all HTTP/HTTPS traffic
+   - Simple path-based routing (`/longhorn`)
+   - Minimal configuration changes
+
+2. **What Didn't Work**
+   - Direct NodePort configuration was problematic
+   - Modifying k3s server config didn't resolve NodePort issues
+   - Complex Ingress configurations caused more problems
+
+#### Next Steps
+1. **Security**
+   - [ ] Add authentication to Longhorn UI
+   - [ ] Set up TLS certificates for HTTPS
+   - [ ] Implement network policies
+
+2. **Documentation**
+   - [ ] Document service endpoints
+   - [ ] Add access instructions
+   - [ ] Document troubleshooting steps
+
+3. **Backup & Recovery**
+   - [ ] Configure Longhorn backup target (S3/NFS)
+   - [ ] Set up scheduled backups for critical volumes
+   - [ ] Document restore procedures
 - [ ] Test backup and restore process

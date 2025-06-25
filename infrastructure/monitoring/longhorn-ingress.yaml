@@ -1,31 +1,16 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: longhorn-ingress
+  name: longhorn
   namespace: longhorn-system
   annotations:
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header X-Forwarded-Host $http_host;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_set_header X-Forwarded-For $remote_addr;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Scheme $scheme;
-      proxy_http_version 1.1;
-      proxy_request_buffering off;
-      proxy_buffering off;
-      proxy_read_timeout 300s;
-      proxy_connect_timeout 75s;
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
-  - host: longhorn.k3s1.local
-    http:
+  - http:
       paths:
-      - path: /()(.*)
+      - path: /longhorn
         pathType: Prefix
         backend:
           service:

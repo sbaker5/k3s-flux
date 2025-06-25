@@ -19,6 +19,7 @@
    - [Installation via FluxCD](#installation-via-fluxcd)
    - [Node Labeling](#node-labeling)
    - [Explicit Disk Registration](#explicit-disk-registration)
+   - [UI Access Configuration](#ui-access-configuration)
    - [Verification](#verification)
 6. [Phase 4: Post-installation](#phase-4-post-installation)
    - [Final Checks](#final-checks)
@@ -210,30 +211,46 @@ flux reconcile kustomization flux-system -n flux-system
 
 ### Disk Preparation
 
-For each disk to be used by Longhorn (e.g., /dev/sdf, /dev/sdg, /dev/sdh):
+1. **Identify Available Disks**
+   ```bash
+   # List all block devices
+   lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL
+   
+   # Identify unused disks (typically /dev/sdX where X is a letter)
+   # WARNING: The following commands will destroy data on the specified disks
+   ```
 
-```bash
-# Wipe existing filesystem signatures
-sudo wipefs -a /dev/sdX
-
-# Create GPT partition table
-sudo parted /dev/sdX mklabel gpt --script
-
-# Create single partition using entire disk
-sudo parted -a opt /dev/sdX mkpart primary 0% 100%
-
-# Optional: Create filesystem (only for defaultDataPath)
-# sudo mkfs.ext4 /dev/sdX1
-
-# Create mount points
-sudo mkdir -p /mnt/longhorn/diskX
-
-# Add to /etc/fstab for persistence
-echo "/dev/sdX1 /mnt/longhorn/diskX ext4 defaults 0 0" | sudo tee -a /etc/fstab
-
-# Mount all filesystems
-sudo mount -a
-```
+2. **Prepare Disks for Longhorn**
+   ```bash
+   # WARNING: This will erase all data on the specified disks
+   DISKS=("/dev/sdb" "/dev/sdc")  # Update with your disk paths
+   
+   for DISK in "${DISKS[@]}"; do
+     echo "Preparing $DISK for Longhorn..."
+     
+     # Unmount any existing partitions
+     sudo umount "${DISK}*" 2>/dev/null || true
+     
+     # Clear existing partition table
+     sudo sgdisk --zap-all "$DISK"
+     sudo wipefs -a "$DISK"
+     
+     # Create new partition table and single partition
+     sudo parted "$DISK" mklabel gpt --script
+     sudo parted -a opt "$DISK" mkpart primary 0% 100% --script
+     
+     # Create filesystem (Longhorn works best with ext4)
+     sudo mkfs.ext4 -F "${DISK}1"
+     
+     # Create mount point and mount
+     MOUNT_POINT="/mnt/longhorn/$(basename $DISK)"
+     sudo mkdir -p "$MOUNT_POINT"
+     echo "${DISK}1 $MOUNT_POINT ext4 defaults 0 0" | sudo tee -a /etc/fstab
+     sudo mount -a
+     
+     echo "$DISK prepared and mounted at $MOUNT_POINT"
+   done
+   ```
 
 ### Installation via FluxCD
 
@@ -358,34 +375,127 @@ spec:
       tags: []
 ```
 
+### UI Access Configuration
+
+1. **Create Ingress for Longhorn UI**
+   ```yaml
+   # infrastructure/monitoring/longhorn-ingress.yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: longhorn
+     namespace: longhorn-system
+     annotations:
+       nginx.ingress.kubernetes.io/rewrite-target: /
+   spec:
+     ingressClassName: nginx
+     rules:
+     - http:
+         paths:
+         - path: /longhorn
+           pathType: Prefix
+           backend:
+             service:
+               name: longhorn-frontend
+               port:
+                 number: 80
+   ```
+
+2. **Apply the Ingress**
+   ```bash
+   kubectl apply -f infrastructure/monitoring/longhorn-ingress.yaml
+   ```
+
+3. **Access the UI**
+   - URL: `http://<node-ip>:30080/longhorn`
+   - The UI should be accessible through the NGINX Ingress
+
 ### Verification
 
-```bash
-# Check Longhorn pods
-kubectl get pods -n longhorn-system
+1. **Check Longhorn Components**
+   ```bash
+   # Verify all pods are running
+   kubectl get pods -n longhorn-system
+   
+   # Check Longhorn manager logs
+   kubectl logs -n longhorn-system -l app=longhorn-manager
+   
+   # Verify UI service is accessible
+   curl -I http://localhost:30080/longhorn
+   ```
 
-# Check storage classes
-kubectl get storageclass
+2. **Test Volume Creation**
+   ```yaml
+   # test-volume.yaml
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: test-volume
+   spec:
+     accessModes:
+       - ReadWriteOnce
+     storageClassName: longhorn
+     resources:
+       requests:
+         storage: 1Gi
+   ```
+   
+   ```bash
+   # Apply the test volume
+   kubectl apply -f test-volume.yaml
+   
+   # Verify the volume is created
+   kubectl get pvc test-volume
+   
+   # Check volume in Longhorn UI
+   # Go to Volumes section in the UI at http://<node-ip>:30080/longhorn
+   ```
 
-# Check Longhorn nodes and disks
-kubectl get -n longhorn-system nodes.longhorn.io -o yaml
+3. **Verify Storage Classes**
+   ```bash
+   # List available storage classes
+   kubectl get storageclass
+   
+   # Verify Longhorn is the default
+   kubectl get storageclass -o json | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .metadata.name'
+   ```
 
-# Test volume creation
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: test-volume
-  namespace: default
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: longhorn
-  resources:
-    requests:
-      storage: 1Gi
-EOF
-```
+## Troubleshooting
+
+### Longhorn UI Not Accessible
+1. **Check Ingress Status**
+   ```bash
+   kubectl get ingress -n longhorn-system
+   kubectl describe ingress longhorn -n longhorn-system
+   ```
+
+2. **Check NGINX Ingress Logs**
+   ```bash
+   kubectl logs -n infrastructure -l app.kubernetes.io/name=ingress-nginx
+   ```
+
+3. **Verify Service Endpoints**
+   ```bash
+   kubectl get endpoints -n longhorn-system longhorn-frontend
+   ```
+
+### Volume Creation Issues
+1. **Check Node Disk Pressure**
+   ```bash
+   kubectl describe nodes | grep -A 10 "Conditions:"
+   ```
+
+2. **Check Longhorn Manager Logs**
+   ```bash
+   kubectl logs -n longhorn-system -l app=longhorn-manager
+   ```
+
+3. **Verify Disk Mounts**
+   ```bash
+   # On each node
+   df -h /mnt/longhorn/*
+   mount | grep longhorn
+   ```
 
 ## Phase 4: Post-installation
 

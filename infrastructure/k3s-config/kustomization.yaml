@@ -1,0 +1,8 @@
+# Apply k3s configuration
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# This will be applied to the host system using a K3sConfig resource
+# Note: This requires the k3s-operator or a similar solution to be installed
+resources:
+  - config.yaml

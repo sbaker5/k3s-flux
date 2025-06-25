@@ -6,13 +6,14 @@ This document outlines the setup, configuration, and operation of Longhorn distr
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Installation](#installation)
-4. [Verification](#verification)
-5. [Usage](#usage)
-6. [Backup Configuration](#backup-configuration)
-7. [Monitoring](#monitoring)
-8. [Troubleshooting](#troubleshooting)
-9. [Maintenance](#maintenance)
-10. [Recovery Procedures](#recovery-procedures)
+4. [Accessing the UI](#accessing-the-ui)
+5. [Verification](#verification)
+6. [Usage](#usage)
+7. [Backup Configuration](#backup-configuration)
+8. [Monitoring](#monitoring)
+9. [Troubleshooting](#troubleshooting)
+10. [Maintenance](#maintenance)
+11. [Recovery Procedures](#recovery-procedures)
 
 ## Overview
 
@@ -31,6 +32,13 @@ Longhorn provides enterprise-grade persistent storage for Kubernetes workloads w
 - **Deployment Method**: Flux CD v2
 - **Kubernetes Version**: v1.24+
 - **Storage Class**: `longhorn` (default)
+- **UI Access**: Available via NGINX Ingress at `/longhorn` path
+
+### Current Configuration
+- **Replica Count**: 2 (configurable per volume)
+- **Default Data Path**: `/var/lib/longhorn/`
+- **Node Scheduling**: Enabled for all worker nodes
+- **Backup Target**: Not configured by default
 
 ## Architecture
 
@@ -69,6 +77,161 @@ Longhorn's architecture is designed for reliability and performance in a distrib
 ## Installation
 
 Longhorn is deployed using Flux CD with GitOps principles. The configuration is stored in the cluster's Git repository under `infrastructure/longhorn/`.
+
+### Prerequisites
+
+Before installation, ensure all nodes meet these requirements:
+
+1. **System Requirements**
+   - Open-iSCSI installed and configured
+   - NFS client utilities (for backup support)
+   - Minimum 1 CPU core and 2GB RAM per node
+   - At least 10GB free disk space per node
+   - Kernel modules: `nvme`, `nvme_core`, `nvme_tcp` (if using NVMe)
+
+2. **k3s Specific Requirements**
+   - k3s version 1.24 or higher
+   - Container runtime: containerd (default with k3s)
+   - Ensure local-path provisioner is not conflicting
+
+### Installation Steps
+
+1. **Add Longhorn Helm Repository**
+   ```yaml
+   # infrastructure/longhorn/helm-repository.yaml
+   apiVersion: source.toolkit.fluxcd.io/v1beta2
+   kind: HelmRepository
+   metadata:
+     name: longhorn
+     namespace: flux-system
+   spec:
+     interval: 1h
+     url: https://charts.longhorn.io
+   ```
+
+2. **Create Longhorn Namespace**
+   ```yaml
+   # infrastructure/longhorn/namespace.yaml
+   apiVersion: v1
+   kind: Namespace
+   metadata:
+     name: longhorn-system
+   ```
+
+3. **Deploy Longhorn**
+   ```yaml
+   # infrastructure/longhorn/release.yaml
+   apiVersion: helm.toolkit.fluxcd.io/v2beta1
+   kind: HelmRelease
+   metadata:
+     name: longhorn
+     namespace: longhorn-system
+   spec:
+     interval: 1h
+     chart:
+       spec:
+         chart: longhorn
+         sourceRef:
+           kind: HelmRepository
+           name: longhorn
+           namespace: flux-system
+         version: "1.5.x"
+     values:
+       defaultSettings:
+         defaultDataPath: /var/lib/longhorn/
+         replicaCount: "2"
+         defaultReplicaCount: "2"
+         backupTarget: ""
+         backupTargetCredentialSecret: ""
+         createDefaultDiskLabeledNodes: true
+         defaultDataLocality: disabled
+         guaranteeEngineCPU: false
+         kubernetesClusterAutoscalerEnabled: false
+         priorityClass: ""
+       persistence:
+         defaultClass: true
+         defaultClassReplicaCount: 2
+         reclaimPolicy: Delete
+         defaultFsType: ext4
+       service:
+         ui:
+           type: ClusterIP
+           nodePort: null
+   ```
+
+## Accessing the UI
+
+Longhorn provides a web-based UI for monitoring and management. It's exposed through the NGINX Ingress Controller.
+
+### Access URL
+- **UI URL**: `http://<node-ip>:30080/longhorn`
+- **Authentication**: None by default (consider adding authentication for production)
+
+### UI Features
+- **Dashboard**: Overview of cluster status
+- **Volume Management**: Create and manage volumes
+- **Node View**: Monitor node status and disk usage
+- **Backup & Restore**: Manage backups and restores
+- **Settings**: Configure Longhorn settings
+
+### Access via CLI
+
+```bash
+# Port-forward to access UI locally
+kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80
+# Then access at http://localhost:8080
+```
+
+## Verification
+
+### Check Longhorn Components
+
+```bash
+# Verify all Longhorn pods are running
+kubectl get pods -n longhorn-system
+
+# Check Longhorn manager logs
+kubectl logs -n longhorn-system -l app=longhorn-manager
+
+# Verify storage class
+kubectl get storageclass
+```
+
+### Test Volume Creation
+
+1. **Create a test PVC**
+   ```yaml
+   # test-pvc.yaml
+   apiVersion: v1
+   kind: PersistentVolumeClaim
+   metadata:
+     name: test-pvc
+   spec:
+     accessModes:
+       - ReadWriteOnce
+     storageClassName: longhorn
+     resources:
+       requests:
+         storage: 1Gi
+   ```
+
+   ```bash
+   kubectl apply -f test-pvc.yaml
+   ```
+
+2. **Verify Volume Status**
+   ```bash
+   # Check PVC status
+   kubectl get pvc test-pvc
+   
+   # Check Longhorn volume
+   kubectl get volumes -n longhorn-system
+   ```
+
+3. **Cleanup**
+   ```bash
+   kubectl delete -f test-pvc.yaml
+   ```
 
 ### Prerequisites
 

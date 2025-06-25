@@ -1,53 +1,112 @@
-# Flux CD Recovery Guide
+# Flux CD Recovery Guide for k3s
 
-This document provides a step-by-step guide to recover from a Flux CD control plane failure, where the core components have been deleted or are not functioning correctly.
+This document provides a comprehensive guide to recover from Flux CD control plane failures in a k3s environment. It covers scenarios where core components are deleted or not functioning as expected.
 
 ## Table of Contents
-1. [Current State Assessment](#current-state-assessment)
-2. [Phase 1: Investigate the Deletion Event](#phase-1-investigate-the-deletion-event)
-3. [Phase 2: Prepare for Recovery](#phase-2-prepare-for-recovery)
-4. [Phase 3: Restore Flux Control Plane](#phase-3-restore-flux-control-plane)
-5. [Phase 4: Validate and Reconcile](#phase-4-validate-and-reconcile)
-6. [Phase 5: Preventative Measures](#phase-5-preventative-measures)
-7. [Common Issues and Solutions](#common-issues-and-solutions)
+1. [Quick Recovery](#quick-recovery)
+2. [Current State Assessment](#current-state-assessment)
+3. [Phase 1: Investigate the Issue](#phase-1-investigate-the-issue)
+4. [Phase 2: Prepare for Recovery](#phase-2-prepare-for-recovery)
+5. [Phase 3: Restore Flux Control Plane](#phase-3-restore-flux-control-plane)
+6. [Phase 4: Validate and Reconcile](#phase-4-validate-and-reconcile)
+7. [Phase 5: Preventative Measures](#phase-5-preventative-measures)
+8. [Common Issues and Solutions](#common-issues-and-solutions)
+9. [k3s-Specific Considerations](#k3s-specific-considerations)
+
+## Quick Recovery
+
+For a quick recovery when the Flux control plane is down:
+
+```bash
+# 1. Bootstrap Flux if completely missing
+curl -s https://fluxcd.io/install.sh | sudo bash
+
+# 2. Check if k3s is using the default kubeconfig location
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+# 3. Restart Flux components
+kubectl -n flux-system rollout restart deployment
+
+# 4. Check component status
+flux check
+
+# 5. Force reconciliation
+flux reconcile source git flux-system
+flux reconcile kustomization flux-system
+```
 
 ## Current State Assessment
 
 ### Verify Current Cluster State
 
 ```bash
+# Check if k3s is running
+sudo systemctl status k3s
+
 # Check Flux pods
 kubectl get pods -n flux-system
 
 # Check Flux custom resources
 kubectl get gitrepositories,kustomizations,helmreleases -A
 
-# Check for any recent deletion events
-kubectl get events --sort-by='.lastTimestamp' -A | grep -i "delete"
+# Check for recent events
+kubectl get events --sort-by='.lastTimestamp' -A --field-selector=involvedObject.namespace=flux-system
+
+# Check k3s logs
+sudo journalctl -u k3s -n 50 --no-pager
 ```
 
 ### Expected Symptoms
 - No pods in the `flux-system` namespace
 - Missing `GitRepository` and `Kustomization` resources
 - `flux` CLI commands failing
+- High CPU/memory usage on k3s nodes
+- Network connectivity issues between nodes
 
-## Phase 1: Investigate the Deletion Event
+## Phase 1: Investigate the Issue
 
-### 1.1 Check Cluster Events
+### 1.1 Check k3s and System Status
 
 ```bash
-# Get recent events across all namespaces
-kubectl get events --sort-by='.lastTimestamp' -A --field-selector=involvedObject.name=flux-system -A
+# Check k3s service status
+sudo systemctl status k3s
 
-# Check for any failed operations
-kubectl get events --sort-by='.lastTimestamp' -A | grep -i "error\|fail"
+# Check disk space
+df -h
+
+# Check memory usage
+free -m
+
+# Check k3s logs
+sudo journalctl -u k3s -n 100 --no-pager
 ```
 
-### 1.2 Review API Server Audit Logs (if available)
+### 1.2 Check Cluster Events
 
 ```bash
-# Get API server logs
-kubectl -n kube-system logs -l component=kube-apiserver | grep -i flux-system
+# Get recent events for Flux
+kubectl get events --sort-by='.lastTimestamp' -A --field-selector=involvedObject.namespace=flux-system
+
+# Check for errors in all namespaces
+kubectl get events --sort-by='.lastTimestamp' -A | grep -i "error\|fail\|exception"
+
+# Check pod logs
+kubectl logs -n flux-system -l app=source-controller
+kubectl logs -n flux-system -l app=kustomize-controller
+kubectl logs -n flux-system -l app=helm-controller
+```
+
+### 1.3 Check Network Connectivity
+
+```bash
+# Check node status
+kubectl get nodes -o wide
+
+# Check network policies
+kubectl get networkpolicies -A
+
+# Test DNS resolution
+kubectl run -it --rm --restart=Never --image=alpine:3.18 test -- sh -c "nslookup github.com"
 ```
 
 ## Phase 2: Prepare for Recovery
@@ -61,16 +120,37 @@ git status
 # Fetch latest changes
 git fetch origin
 
-git checkout main  # or your main branch
+# Switch to main branch
+git checkout main
 git pull origin main
+
+# Verify the repository structure
+ls -la clusters/k3s-flux/flux-system/
 ```
 
 ### 2.2 Verify Core Manifests
 
-Ensure these files exist in your repository:
+Required files in your repository:
 - `clusters/k3s-flux/flux-system/gotk-components.yaml`
 - `clusters/k3s-flux/flux-system/gotk-sync.yaml`
 - `clusters/k3s-flux/flux-system/kustomization.yaml`
+- `clusters/k3s-flux/infrastructure.yaml`
+- `clusters/k3s-flux/apps.yaml`
+
+### 2.3 Backup Current State
+
+```bash
+# Create backup directory
+BACKUP_DIR="flux-backup-$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+
+# Backup current Flux resources
+kubectl get -n flux-system all -o yaml > "$BACKUP_DIR/flux-resources.yaml"
+kubectl get -n flux-system kustomizations,gitrepositories,helmrepositories,helmcharts -o yaml > "$BACKUP_DIR/flux-crds.yaml"
+
+# Backup k3s configuration
+sudo cp -r /etc/rancher/k3s "$BACKUP_DIR/k3s-config"
+```
 
 ## Phase 3: Restore Flux Control Plane
 
@@ -82,6 +162,9 @@ kubectl apply -f clusters/k3s-flux/flux-system/gotk-components.yaml
 
 # Wait for CRDs to be established
 kubectl wait --for condition=established --timeout=60s -f clusters/k3s-flux/flux-system/gotk-components.yaml
+
+# Wait for pods to be ready
+kubectl -n flux-system wait --for=condition=ready pod --all --timeout=300s
 ```
 
 ### 3.2 Restore GitRepository
@@ -92,9 +175,38 @@ kubectl apply -f clusters/k3s-flux/flux-system/gotk-sync.yaml
 
 # Verify the GitRepository
 kubectl get gitrepositories -n flux-system
+
+# Check sync status
+flux get sources git
 ```
 
-### 3.3 Restore Kustomization
+### 3.3 Restore Kustomizations
+
+```bash
+# Apply main Kustomization
+kubectl apply -f clusters/k3s-flux/flux-system/kustomization.yaml
+
+# Apply infrastructure Kustomization
+kubectl apply -f clusters/k3s-flux/infrastructure.yaml
+
+# Apply apps Kustomization
+kubectl apply -f clusters/k3s-flux/apps.yaml
+
+# Check Kustomization status
+flux get kustomizations --all-namespaces
+```
+
+### 3.4 Force Reconciliation
+
+```bash
+# Reconcile sources
+flux reconcile source git flux-system
+
+# Reconcile Kustomizations
+flux reconcile kustomization flux-system
+flux reconcile kustomization infrastructure
+flux reconcile kustomization apps
+```
 
 ```bash
 # Apply the main Kustomization
@@ -474,27 +586,76 @@ flux-system   4m39s   False   Source artifact not found, retrying in 30s
 
 ## Common Issues and Solutions
 
-### Issue: GitRepository Not Found
+### 1. Flux Components Not Starting
+- **Symptom**: Pods in `CrashLoopBackOff`
+  ```bash
+  # Check logs
+  kubectl logs -n flux-system -l app=source-controller
+  kubectl logs -n flux-system -l app=kustomize-controller
+  
+  # Common causes:
+  # - Missing CRDs
+  # - RBAC issues
+  # - Resource constraints
+  ```
 
-**Symptom**: `GitRepository.source.toolkit.fluxcd.io "flux-system" not found`
+### 2. Git Authentication Failures
+- **Symptom**: `authentication required` in source-controller logs
+  ```bash
+  # Check GitRepository status
+  kubectl get gitrepositories -n flux-system -o yaml
+  
+  # Verify secret exists
+  kubectl get secret -n flux-system flux-system -o yaml
+  
+  # Regenerate deploy key if needed
+  flux create secret git flux-system \
+    --url=ssh://git@github.com/username/repository \
+    --export > clusters/k3s-flux/flux-system/gotk-sync.yaml
+  ```
 
-**Solution**:
-```bash
-kubectl apply -f clusters/k3s-flux/flux-system/gotk-sync.yaml
-```
+### 3. Kustomization Not Applying
+- **Symptom**: Kustomization shows `False` status
+  ```bash
+  # Get detailed status
+  kubectl describe kustomization -n flux-system flux-system
+  
+  # Force reconciliation
+  flux reconcile kustomization flux-system --with-source
+  
+  # Check for dependency issues
+  flux tree kustomization flux-system
+  ```
 
-### Issue: Kustomization Stuck in Progressing
+### 4. k3s-Specific Issues
+- **Symptom**: Network policies blocking Flux
+  ```bash
+  # Check network policies
+  kubectl get networkpolicies -A
+  
+  # Temporarily allow all traffic for debugging
+  kubectl apply -f - <<EOF
+  apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: allow-all-flux
+    namespace: flux-system
+  spec:
+    podSelector: {}
+    policyTypes:
+    - Ingress
+    - Egress
+    ingress:
+    - {}
+    egress:
+    - {}
+  EOF
+  ```
 
-**Symptom**: Kustomization shows `Progressing=True` for extended time
+## k3s-Specific Considerations
 
-**Solution**:
-```bash
-# Get detailed status
-kubectl describe kustomization flux-system -n flux-system
-
-# Check controller logs
-kubectl logs -n flux-system -l app=kustomize-controller
-```
+### 1. Resource Constraints
+k3s nodes might have limited resources. Monitor and adjust as needed:
 
 ### Issue: Webhook Failures
 
