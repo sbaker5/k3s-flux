@@ -4,6 +4,7 @@ namespace: monitoring
 
 # CRDs must be installed first
 resources:
-  - crds/
+  - helm-repository.yaml
+  - prometheus-operator.yaml
   - base/
   - longhorn-ingress.yaml
