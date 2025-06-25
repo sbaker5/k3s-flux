@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   # Application resources
   - example-app-kustomization.yaml
-  - apps-longhorn-test-dev.yaml
   
   # Infrastructure components
   - ../../infrastructure/namespace.yaml
