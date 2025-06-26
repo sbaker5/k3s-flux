@@ -1,10 +1,10 @@
-apiVersion: helm.toolkit.fluxcd.io/v2beta1
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: kube-prometheus-stack
+  name: monitoring-kube-prometheus-stack
   namespace: monitoring
   labels:
-    app.kubernetes.io/name: kube-prometheus-stack
+    app.kubernetes.io/name: monitoring
     app.kubernetes.io/instance: monitoring
     app.kubernetes.io/part-of: monitoring
 spec:
@@ -12,7 +12,7 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "55.12.0"  # Latest stable version
+      version: "75.6.0"  # Updated to available version
       sourceRef:
         kind: HelmRepository
         name: monitoring-prometheus-community
