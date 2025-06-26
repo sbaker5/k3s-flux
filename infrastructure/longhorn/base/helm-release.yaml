@@ -12,7 +12,7 @@ spec:
   chart:
     spec:
       chart: longhorn
-      version: "1.5.1"  # Rollback to 1.5.1 before sequential upgrade
+      version: "1.6.2"  # Upgrade to 1.6.2 as next step in sequential upgrade
       sourceRef:
         kind: HelmRepository
         name: longhorn-longhorn  # Updated to match the actual HelmRepository name
