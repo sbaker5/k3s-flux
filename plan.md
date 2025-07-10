@@ -15,11 +15,13 @@
 ## Task List
 - [x] Add `dependsOn` for infrastructure in clusters/k3s-flux/monitoring.yaml
 - [x] Refactor clusters/k3s-flux/kustomization.yaml to reference only infrastructure.yaml and monitoring.yaml (not infra/monitoring directories directly)
-- [ ] Ensure clusters/k3s-flux/infrastructure.yaml references all infra components (nginx-ingress, longhorn, etc.)
+- [x] Ensure clusters/k3s-flux/infrastructure.yaml references all infra components (nginx-ingress, longhorn, etc.)
+- [x] Remove monitoring/base/ from infrastructure/kustomization.yaml to avoid double reconciliation
+- [x] Ensure monitoring is managed exclusively by monitoring.yaml
 - [ ] Validate that monitoring only reconciles after infrastructure is healthy
 
 ## Current Goal
-Validate infra.yaml references and dependency behavior
+Validate monitoring-only reconciliation and troubleshoot any remaining dependency or reconciliation issues
 
 ---
 

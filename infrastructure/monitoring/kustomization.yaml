@@ -7,4 +7,3 @@ resources:
   - helm-repository.yaml
   - prometheus-operator.yaml
   - base/
-  - longhorn-ingress.yaml
