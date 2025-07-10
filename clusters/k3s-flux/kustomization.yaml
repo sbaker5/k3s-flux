@@ -3,9 +3,7 @@ kind: Kustomization
 resources:
   # Application resources
   - example-app-kustomization.yaml
-  
-  # Infrastructure components
-  - ../../infrastructure/namespace.yaml
-  - ../../infrastructure/nginx-ingress/
-  - ../../infrastructure/longhorn/base/
-  - ../../infrastructure/monitoring/base/
+
+  # Top-level Kustomization CRs for infra and monitoring
+  - infrastructure.yaml
+  - monitoring.yaml

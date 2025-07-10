@@ -9,7 +9,6 @@ resources:
   - nginx-ingress/
   - longhorn/base/
   # - cert-manager/
-  - monitoring/base/
 
 commonLabels:
   app.kubernetes.io/part-of: infrastructure

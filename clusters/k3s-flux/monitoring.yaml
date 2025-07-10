@@ -12,3 +12,6 @@ spec:
     name: flux-system
   timeout: 5m
   wait: true
+  dependsOn:
+    - name: infrastructure
+      namespace: flux-system

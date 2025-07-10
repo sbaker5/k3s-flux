@@ -559,6 +559,31 @@ kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
    - Document volume backup/restore procedures
    - Test disaster recovery regularly
 
+---
+
+## Appendix: Real-World Upgrade, Cleanup, and Recovery Lessons (2025-06)
+
+- **Sequential Upgrades:**
+  - Upgrade Longhorn one minor version at a time (e.g., 1.5.x → 1.6.x → ... → 1.9.x). Skipping versions can break the cluster.
+  - If a chart version is unavailable, use the latest patch for that minor version.
+- **Disk Registration Best Practices:**
+  - The file longhorn-disk.cfg on each disk **must contain '{}' (valid JSON)**. Do not leave this file empty or use invalid JSON, or disk registration will fail.
+  - Always use Node CR YAML for disk registration (GitOps). Avoid manual UI disk edits.
+  - Manual disk registration creates duplicates and can lock the UI.
+- **Duplicate Disk Cleanup:**
+  1. Disable scheduling and evict all replicas from the disk.
+  2. Remove the disk from the Node CR and apply.
+  3. If the disk is stuck, delete the Node CR (removes node from Longhorn), wipe/reformat disks, remove longhorn-disk.cfg, and re-register declaratively.
+  4. Ensure longhorn-disk.cfg exists on each disk after wipe/reformat and contains '{}' (valid JSON). **Never leave this file empty!**
+
+> **Warning:** longhorn-disk.cfg must contain '{}' (empty JSON object). An empty file will cause disk registration to fail with a JSON parse error.
+  5. Restart longhorn-manager pods to force reconciliation.
+- **Recovery Timeline:**
+  - Disk/node reconciliation can take 5–10+ minutes after a full reset—be patient.
+- **Permanent Reference:**
+  - For step-by-step commands and YAML, see the main guide sections above and `docs/longhorn-setup.md`.
+
+---
 3. **Node Recovery**
    - Document node replacement procedures
    - Keep installation media and configuration handy

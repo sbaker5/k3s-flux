@@ -970,6 +970,30 @@ kubectl get backuptargets -n longhorn-system
 
 ### 6. Disaster Recovery
 
+---
+
+### Validated Upgrade, Disk Cleanup, and Recovery Workflow (2025-06)
+
+- **Sequential Upgrades:**
+  - Upgrade Longhorn one minor version at a time (do not skip). Use the latest patch for each minor version if needed.
+- **Disk Registration:**
+  - Register disks declaratively via Node CR YAML. Avoid manual registration in the UI.
+  - After a disk wipe/reformat, always create a longhorn-disk.cfg file at the disk root containing '{}' (valid JSON). **Never leave this file empty!**
+
+> **Warning:** longhorn-disk.cfg must contain '{}' (empty JSON object). An empty file will cause disk registration to fail with a JSON parse error.
+- **Duplicate Disk/Node Cleanup:**
+  1. Disable scheduling and evict all replicas from the disk.
+  2. Remove the disk from the Node CR and apply.
+  3. If stuck, delete the Node CR (removes node from Longhorn), wipe/reformat disks, remove longhorn-disk.cfg, and re-register declaratively.
+  4. Restart longhorn-manager pods to force reconciliation.
+- **Recovery Observations:**
+  - Disk/node reconciliation can take 5–10+ minutes after a full reset.
+  - UI may be temporarily uneditable if duplicates exist; full reset resolves this.
+- **Reference:**
+  - See `docs/k3s-flux-longhorn-guide.md` for full step-by-step and troubleshooting.
+
+---
+
 #### Export Backup Configuration
 
 ```bash
