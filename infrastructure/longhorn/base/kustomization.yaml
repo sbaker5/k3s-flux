@@ -13,8 +13,6 @@ commonLabels:
   app.kubernetes.io/managed-by: flux
   app.kubernetes.io/part-of: k3s-flux
 
-# Name prefix for all resources
-namePrefix: longhorn-
-
-# Set the namespace for all resources
-namespace: longhorn-system
+# Note: Removed namePrefix and namespace settings to avoid conflicts
+# The namespace is explicitly defined in namespace.yaml
+# HelmRelease resources should not have name prefixes
