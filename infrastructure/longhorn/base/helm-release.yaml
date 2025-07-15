@@ -15,7 +15,7 @@ spec:
       version: "1.9.0"  # Upgrade to 1.9.0 as final step in sequential upgrade
       sourceRef:
         kind: HelmRepository
-        name: longhorn-longhorn  # Updated to match the actual HelmRepository name
+        name: longhorn
         namespace: longhorn-system
       interval: 1h
   values:
