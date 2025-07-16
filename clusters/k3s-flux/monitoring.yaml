@@ -12,6 +12,8 @@ spec:
     name: flux-system
   timeout: 5m
   wait: true
-  dependsOn:
-    - name: infrastructure
-      namespace: flux-system
+  # Temporarily removed hard dependency on infrastructure
+  # Will re-enable once Longhorn storage is stable
+  # dependsOn:
+  #   - name: infrastructure
+  #     namespace: flux-system
