@@ -10,9 +10,9 @@ resources:
   - longhorn/base/
   # - cert-manager/
 
-commonLabels:
-  app.kubernetes.io/part-of: infrastructure
-  app.kubernetes.io/managed-by: flux
+# Note: Removed commonLabels to avoid conflicts with HelmRelease resources
+# HelmReleases manage their own labeling and commonLabels cause immutable field conflicts
+# Individual components can add their own labels as needed
 
 # Add common annotations if needed
 # commonAnnotations:
