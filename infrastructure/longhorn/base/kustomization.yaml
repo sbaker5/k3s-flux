@@ -6,12 +6,9 @@ resources:
   - helm-repository.yaml
   - helm-release.yaml
 
-# Common labels to apply to all resources
-commonLabels:
-  app.kubernetes.io/name: longhorn
-  app.kubernetes.io/instance: longhorn
-  app.kubernetes.io/managed-by: flux
-  app.kubernetes.io/part-of: k3s-flux
+# Note: Removed commonLabels to avoid conflicts with Helm-managed resources
+# HelmRelease should not have commonLabels applied as it interferes with Helm's labeling
+# Labels are managed by Helm chart and individual resource metadata instead
 
 # Note: Removed namePrefix and namespace settings to avoid conflicts
 # The namespace is explicitly defined in namespace.yaml
