@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Storage components - can fail without breaking core
+  - ../longhorn/base/
+  - ../k3s1-node-config/
+  
+# If Longhorn is being a pain in the ass, this fails gracefully
+# Your core infrastructure and containers keep working

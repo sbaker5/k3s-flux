@@ -1,9 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Application resources
-  - example-app-kustomization.yaml
-
-  # Top-level Kustomization CRs for infra and monitoring
-  - infrastructure.yaml
+  # Core infrastructure - ALWAYS WORKS (networking, ingress)
+  - infrastructure-core.yaml
+  
+  # Storage infrastructure - CAN FAIL without breaking core
+  - infrastructure-storage.yaml
+  
+  # Platform services - depend on storage when needed
   - monitoring.yaml
+  
+  # Applications - BULLETPROOF (only depend on core)
+  - example-app-kustomization.yaml
