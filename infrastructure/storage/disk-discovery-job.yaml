@@ -1,0 +1,130 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: longhorn-disk-discovery
+  namespace: longhorn-system
+  labels:
+    app: longhorn-disk-discovery
+spec:
+  template:
+    metadata:
+      labels:
+        app: longhorn-disk-discovery
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: longhorn-disk-discovery
+      containers:
+      - name: disk-discovery
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          NODE_NAME=${NODE_NAME:-$(hostname)}
+          echo "🔍 Discovering disks for node: $NODE_NAME"
+          
+          # Get node info
+          kubectl get node $NODE_NAME -o yaml > /tmp/node.yaml
+          
+          # Create a script to run on the node via kubectl exec
+          cat > /tmp/discover.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "🔍 Scanning for available disks..."
+          
+          # Find unmounted block devices > 10GB
+          DISKS=$(lsblk -rno NAME,SIZE,TYPE,MOUNTPOINT | \
+            awk '$3=="disk" && $4=="" && $2~/G$/ { 
+              size=substr($2,1,length($2)-1); 
+              if(size >= 10) print $1 
+            }')
+          
+          echo "📦 Found disks: $DISKS"
+          
+          # Output disk config for Longhorn Node CR
+          echo "disks:" > /tmp/disk-config.yaml
+          for disk in $DISKS; do
+            mount_path="/mnt/longhorn/$disk"
+            echo "  $disk:" >> /tmp/disk-config.yaml
+            echo "    path: $mount_path" >> /tmp/disk-config.yaml
+            echo "    allowScheduling: true" >> /tmp/disk-config.yaml
+            echo "    storageReserved: 0" >> /tmp/disk-config.yaml
+            echo "    tags: []" >> /tmp/disk-config.yaml
+          done
+          
+          cat /tmp/disk-config.yaml
+          EOF
+          
+          # Find a pod on the target node to exec into
+          POD=$(kubectl get pods -A -o wide --field-selector spec.nodeName=$NODE_NAME | \
+                grep Running | head -1 | awk '{print $2 " -n " $1}')
+          
+          if [ -n "$POD" ]; then
+            echo "📡 Executing disk discovery on $NODE_NAME via pod $POD"
+            kubectl exec $POD -- bash -c "$(cat /tmp/discover.sh)" > /tmp/discovered-disks.yaml
+            
+            # Create Longhorn Node CR with discovered disks
+            cat > /tmp/node-cr.yaml << EOF
+          apiVersion: longhorn.io/v1beta2
+          kind: Node
+          metadata:
+            name: $NODE_NAME
+            namespace: longhorn-system
+            labels:
+              app.kubernetes.io/managed-by: flux
+              longhorn.io/disk-discovery: "auto"
+          spec:
+          $(cat /tmp/discovered-disks.yaml | sed 's/^/  /')
+          EOF
+            
+            echo "🚀 Creating Longhorn Node CR for $NODE_NAME"
+            kubectl apply -f /tmp/node-cr.yaml
+            
+            echo "✅ Disk discovery complete for $NODE_NAME"
+          else
+            echo "❌ No running pods found on node $NODE_NAME"
+            exit 1
+          fi
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+      nodeSelector:
+        storage: longhorn
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: longhorn-disk-discovery
+  namespace: longhorn-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: longhorn-disk-discovery
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "pods"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: ["longhorn.io"]
+  resources: ["nodes"]
+  verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: longhorn-disk-discovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: longhorn-disk-discovery
+subjects:
+- kind: ServiceAccount
+  name: longhorn-disk-discovery
+  namespace: longhorn-system

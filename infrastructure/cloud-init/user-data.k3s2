@@ -16,20 +16,8 @@ runcmd:
   # Enable iscsid (required for Longhorn)
   - systemctl enable --now iscsid
 
-  # Prepare disk for Longhorn with filesystem (consistent with k3s1)
-  - sgdisk --zap-all /dev/sdb || true
-  - wipefs -a /dev/sdb
-  - parted /dev/sdb mklabel gpt --script
-  - parted -a opt /dev/sdb mkpart primary 0% 100%
-  - mkfs.ext4 /dev/sdb1
-  
-  # Mount disk for Longhorn
-  - mkdir -p /mnt/longhorn/sdb1
-  - echo "/dev/sdb1 /mnt/longhorn/sdb1 ext4 defaults 0 0" >> /etc/fstab
-  - mount -a
-  
-  # Create Longhorn disk config file (critical!)
-  - echo '{}' > /mnt/longhorn/sdb1/longhorn-disk.cfg
+  # Disk discovery will be handled by Flux DaemonSet
+  # Just ensure iSCSI is ready for Longhorn
   
   # Install k3s and join cluster
   - curl -sfL https://get.k3s.io | K3S_URL=https://192.168.86.71:6443 K3S_TOKEN=K10ae2f303b4ca2fa85815ccaeaf3eddb0aeed9bc3fa3da22b4fbcb0d8d33d6a41f::server:2e2bf7cb49a2d04ec34f4b6b41485ce6 sh -

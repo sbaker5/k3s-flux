@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   # Storage components - can fail without breaking core
   - ../longhorn/base/
+  - disk-discovery-daemonset.yaml
   - ../k3s1-node-config/
   # Uncomment when k3s2 joins the cluster
   # - ../k3s2-node-config/

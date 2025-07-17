@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: longhorn-disk-discovery
+  namespace: longhorn-system
+  labels:
+    app: longhorn-disk-discovery
+spec:
+  selector:
+    matchLabels:
+      app: longhorn-disk-discovery
+  template:
+    metadata:
+      labels:
+        app: longhorn-disk-discovery
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: disk-discovery
+        image: alpine:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "🔍 Discovering available disks on $(hostname)..."
+          
+          # Find unmounted disks > 10GB
+          AVAILABLE_DISKS=$(lsblk -rno NAME,SIZE,TYPE,MOUNTPOINT | \
+            awk '$3=="disk" && $4=="" && $2~/G$/ { 
+              size=substr($2,1,length($2)-1); 
+              if(size >= 10) print "/dev/"$1 
+            }')
+          
+          echo "📦 Available disks: $AVAILABLE_DISKS"
+          
+          # Create disk configs for each available disk
+          for disk in $AVAILABLE_DISKS; do
+            disk_name=$(basename $disk)
+            mount_path="/mnt/longhorn/$disk_name"
+            
+            echo "🔧 Preparing $disk -> $mount_path"
+            
+            # Create partition if needed
+            if ! lsblk ${disk}1 2>/dev/null; then
+              echo "Creating partition on $disk"
+              parted $disk mklabel gpt --script || true
+              parted -a opt $disk mkpart primary 0% 100% --script || true
+              sleep 2
+            fi
+            
+            # Create filesystem if needed
+            if ! blkid ${disk}1 2>/dev/null; then
+              echo "Creating filesystem on ${disk}1"
+              mkfs.ext4 ${disk}1 -F
+            fi
+            
+            # Create mount point and mount
+            mkdir -p $mount_path
+            if ! mountpoint -q $mount_path; then
+              mount ${disk}1 $mount_path
+              echo "${disk}1 $mount_path ext4 defaults 0 0" >> /etc/fstab
+            fi
+            
+            # Create Longhorn disk config
+            echo '{}' > $mount_path/longhorn-disk.cfg
+            
+            echo "✅ Disk $disk ready at $mount_path"
+          done
+          
+          echo "🎉 Disk discovery complete on $(hostname)"
+          # Keep container running
+          sleep infinity
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+          mountPropagation: Bidirectional
+        - name: dev
+          mountPath: /dev
+        - name: proc
+          mountPath: /proc
+        - name: sys
+          mountPath: /sys
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+      - name: dev
+        hostPath:
+          path: /dev
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: sys
+        hostPath:
+          path: /sys
+      tolerations:
+      - operator: Exists
+      nodeSelector:
+        storage: longhorn
