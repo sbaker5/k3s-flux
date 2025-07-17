@@ -6,7 +6,6 @@ resources:
   - deployment.yaml
   - ingress.yaml
   - service.yaml
-  - missing-file.yaml
 
 # Common labels to be applied to all resources
 commonLabels:
