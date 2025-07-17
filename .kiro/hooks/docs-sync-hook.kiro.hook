@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "name": "Documentation Sync",
+  "description": "Monitors all YAML configuration files, markdown files, and infrastructure source files for changes and triggers documentation updates in README.md and docs/ folder",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.yaml",
+      "*.yml",
+      "apps/**/*.yaml",
+      "apps/**/*.yml",
+      "infrastructure/**/*.yaml",
+      "infrastructure/**/*.yml",
+      "clusters/**/*.yaml",
+      "clusters/**/*.yml",
+      "tests/**/*.yaml",
+      "tests/**/*.yml",
+      "*.md",
+      "docs/plan.md",
+      "docs/RULES.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Source files in this Kubernetes GitOps repository have been modified. Please review the changes and update the documentation accordingly. Focus on:\n\n1. Update README.md if there are structural changes to the project or new components added\n2. Update relevant documentation in the docs/ folder if infrastructure components, applications, or configurations have changed\n3. Ensure documentation reflects current architecture, setup procedures, and troubleshooting information\n4. Update any implementation guides or operational procedures that may be affected by the changes\n\nPlease analyze the modified files and determine what documentation updates are needed to keep the docs in sync with the current state of the repository."
+  }
+}

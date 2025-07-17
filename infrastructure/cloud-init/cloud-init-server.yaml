@@ -13,13 +13,13 @@ data:
     #cloud-config
     hostname: k3s2
     preserve_hostname: true
-    
+
     packages:
       - open-iscsi
       - jq
       - curl
       - wget
-    
+
     runcmd:
       - systemctl enable --now iscsid
       # Disk discovery will be handled by Flux DaemonSet
@@ -44,17 +44,17 @@ spec:
         app: cloud-init-server
     spec:
       containers:
-      - name: nginx
-        image: nginx:alpine
-        ports:
-        - containerPort: 80
-        volumeMounts:
-        - name: configs
-          mountPath: /usr/share/nginx/html
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: configs
+              mountPath: /usr/share/nginx/html
       volumes:
-      - name: configs
-        configMap:
-          name: cloud-init-configs
+        - name: configs
+          configMap:
+            name: cloud-init-configs
 ---
 apiVersion: v1
 kind: Service
@@ -66,8 +66,8 @@ metadata:
 spec:
   type: NodePort
   ports:
-  - port: 80
-    targetPort: 80
-    nodePort: 30090
+    - port: 80
+      targetPort: 80
+      nodePort: 30090
   selector:
     app: cloud-init-server

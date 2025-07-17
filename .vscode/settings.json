@@ -11,5 +11,8 @@
   "yaml.completion": true,
   "yaml.validate": true,
   "yaml.hover": true,
-  "yaml.schemaStore.enable": true
+  "yaml.schemaStore.enable": true,
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  }
 }

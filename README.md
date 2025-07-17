@@ -18,7 +18,21 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 ### Operations
 - [Troubleshooting Guide](docs/troubleshooting/flux-recovery-guide.md) - Recovering from common issues
 - [Backup & Recovery](docs/longhorn-setup.md#backup-configuration) - Data backup and recovery procedures
+- [Implementation Plan](docs/implementation-plan.md) - Current development roadmap and improvements
 - [Test Resources](#test-resources) - Test configurations and examples
+
+### Advanced Features
+- **GitOps Resilience Patterns** - Automated recovery mechanisms and validation pipelines to prevent infrastructure lock-ups and ensure smooth deployments
+  - ✅ Pre-commit validation infrastructure with kustomization build validation
+  - ✅ Comprehensive troubleshooting and recovery documentation
+  - ✅ Emergency recovery procedures and operational runbooks
+  - 🚧 Immutable field conflict detection and automated recovery
+  - 🚧 Reconciliation health monitoring and alerting
+  - 🚧 Automated recovery system for stuck reconciliations
+  - 🚧 Resource lifecycle management with blue-green deployment patterns
+  - 🚧 Change impact analysis and staged deployment validation
+
+See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/) for detailed implementation roadmap.
 
 ## 🚀 Getting Started
 
@@ -169,3 +183,4 @@ tests/
 - View Flux resources: `kubectl get kustomizations,kustomizations -A`
 - Check Flux logs: `kubectl logs -n flux-system -l app=source-controller`
 - Get cluster info: `kubectl cluster-info`
+- Validate kustomizations: `./scripts/validate-kustomizations.sh`

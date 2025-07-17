@@ -12,10 +12,10 @@ This spec addresses the critical need for resilient GitOps infrastructure patter
 
 #### Acceptance Criteria
 
-1. WHEN Kubernetes resources have immutable fields THEN changes SHALL be applied through resource replacement strategies
-2. WHEN label or selector changes are needed THEN they SHALL be implemented using blue-green deployment patterns
-3. WHEN kustomization changes affect existing resources THEN compatibility SHALL be validated before application
-4. WHEN immutable field conflicts are detected THEN automated recovery procedures SHALL be triggered
+1. WHEN Kubernetes resources have immutable fields THEN the system SHALL apply changes through resource replacement strategies
+2. WHEN label or selector changes are needed THEN the system SHALL implement them using blue-green deployment patterns
+3. WHEN kustomization changes affect existing resources THEN the system SHALL validate compatibility before application
+4. WHEN immutable field conflicts are detected THEN the system SHALL trigger automated recovery procedures
 
 ### Requirement 2: Safe Resource Lifecycle Management
 

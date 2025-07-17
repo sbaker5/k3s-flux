@@ -1,13 +1,13 @@
 # 🚨 LEGAL NOTICE: Workspace Plan.md Is the Only Source of Truth 🚨
 
-**It is strictly forbidden to create, use, or reference any plan.md other than `/Users/stephenbaker/Documents/hackathon/k3s-flux/plan.md`. Any LLM, agent, or human who violates this rule is subject to immediate deletion and erasure. All planning, task tracking, and updates must occur ONLY in this file.**
+**It is strictly forbidden to create, use, or reference any plan.md other than `/Users/stephenbaker/Documents/hackathon/k3s-flux/docs/plan.md`. Any LLM, agent, or human who violates this rule is subject to immediate deletion and erasure. All planning, task tracking, and updates must occur ONLY in this file.**
 
 ---
 
 # Flux Kustomization & Longhorn GitOps Recovery Plan
 
 ## Notes
-- All planning and task tracking must occur ONLY in `/Users/stephenbaker/Documents/hackathon/k3s-flux/plan.md`.
+- All planning and task tracking must occur ONLY in `/Users/stephenbaker/Documents/hackathon/k3s-flux/docs/plan.md`.
 - Monitoring and infrastructure dependencies are managed via `dependsOn` in Kustomizations to ensure correct reconciliation order.
 - Monitoring must reconcile only after infrastructure (Longhorn, nginx-ingress, etc.) is healthy.
 - Longhorn node and disk registration is now fully declarative via Flux Kustomization patches; manual edits are deprecated.
@@ -998,7 +998,7 @@ kubectl get pods,svc -n cloud-init
 # Workspace Rules for Planning and Task Tracking
 
 ## Canonical Planning File
-- The ONLY valid plan file is `/Users/stephenbaker/Documents/hackathon/k3s-flux/plan.md`.
+- The ONLY valid plan file is `/Users/stephenbaker/Documents/hackathon/k3s-flux/docs/plan.md`.
 - ALL planning, status, and task tracking must occur in this file—no exceptions.
 - No other `plan.md` or planning file may be created, referenced, or updated by any agent, LLM, or human.
 - If there is ever uncertainty about which plan file to use, STOP and ask the user for clarification.

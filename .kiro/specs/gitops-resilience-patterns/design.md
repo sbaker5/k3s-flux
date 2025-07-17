@@ -142,9 +142,10 @@ spec:
 **Purpose**: Automatically resolve common stuck states
 
 **Design Decisions**:
-- Pattern-based error detection and resolution
+- Pattern-based error detection and resolution for both Kustomizations and HelmReleases
 - Resource recreation with proper cleanup
 - Dependency chain resolution
+- HelmRelease-specific rollback procedures
 
 **Interface**:
 ```yaml
@@ -159,8 +160,16 @@ data:
     - error_pattern: "field is immutable"
       recovery_action: "recreate_resource"
       max_retries: 3
+      applies_to: ["Deployment", "Service", "StatefulSet"]
     - error_pattern: "dry-run failed.*Invalid.*spec.selector"
       recovery_action: "recreate_deployment"
+      cleanup_dependencies: true
+    - error_pattern: "HelmRelease.*failed.*upgrade"
+      recovery_action: "rollback_helm_release"
+      max_retries: 2
+      validation_required: true
+    - error_pattern: "install retries exhausted"
+      recovery_action: "reset_helm_release"
       cleanup_dependencies: true
 ```
 

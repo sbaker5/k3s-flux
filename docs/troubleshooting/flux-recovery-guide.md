@@ -627,6 +627,85 @@ flux-system   4m39s   False   Source artifact not found, retrying in 30s
   flux tree kustomization flux-system
   ```
 
+### 4. HelmRelease Failures
+- **Symptom**: HelmRelease stuck in failed state or upgrade failures
+  ```bash
+  # Check HelmRelease status
+  kubectl get helmreleases -A
+  kubectl describe helmrelease <name> -n <namespace>
+  
+  # Check helm-controller logs
+  kubectl logs -n flux-system -l app=helm-controller
+  
+  # Get Helm release history
+  helm history <release-name> -n <namespace>
+  ```
+
+#### HelmRelease Recovery Patterns
+
+**Pattern 1: Failed Upgrade Recovery**
+```bash
+# For HelmReleases with "upgrade failed" errors
+# Check if rollback is possible
+helm history <release-name> -n <namespace>
+
+# Manual rollback to previous version
+helm rollback <release-name> <revision> -n <namespace>
+
+# Force Flux reconciliation
+flux reconcile helmrelease <name> -n <namespace>
+```
+
+**Pattern 2: Install Retries Exhausted**
+```bash
+# For "install retries exhausted" errors
+# Delete the failed Helm release
+helm uninstall <release-name> -n <namespace>
+
+# Clean up any remaining resources
+kubectl delete all -l app.kubernetes.io/instance=<release-name> -n <namespace>
+
+# Suspend and resume HelmRelease to trigger fresh install
+flux suspend helmrelease <name> -n <namespace>
+flux resume helmrelease <name> -n <namespace>
+```
+
+**Pattern 3: Immutable Field Conflicts in HelmReleases**
+```bash
+# For Deployments/Services with immutable field errors via Helm
+# Get the problematic resource
+kubectl get deployment <name> -n <namespace> -o yaml
+
+# Delete the resource to allow recreation
+kubectl delete deployment <name> -n <namespace>
+
+# Force Helm reconciliation
+flux reconcile helmrelease <helmrelease-name> -n <namespace>
+```
+
+**Automated Recovery Configuration**
+Create a ConfigMap for automated HelmRelease recovery:
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flux-helmrelease-recovery-config
+  namespace: flux-system
+data:
+  recovery-patterns.yaml: |
+    patterns:
+    - error_pattern: "HelmRelease.*failed.*upgrade"
+      recovery_action: "rollback_helm_release"
+      max_retries: 2
+      validation_required: true
+    - error_pattern: "install retries exhausted"
+      recovery_action: "reset_helm_release"
+      cleanup_dependencies: true
+    - error_pattern: "field is immutable.*HelmRelease"
+      recovery_action: "recreate_helm_managed_resource"
+      max_retries: 3
+```
+
 ### 4. k3s-Specific Issues
 - **Symptom**: Network policies blocking Flux
   ```bash
