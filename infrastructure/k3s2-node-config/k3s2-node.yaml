@@ -1,0 +1,12 @@
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k3s2
+  namespace: longhorn-system
+spec:
+  disks:
+    sdb1:
+      path: /mnt/longhorn/sdb1
+      allowScheduling: true
+      storageReserved: 0
+      tags: []
