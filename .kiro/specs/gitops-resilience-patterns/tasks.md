@@ -5,7 +5,7 @@
     - Create script to validate all kustomization.yaml files can build successfully
     - Add validation for resource compatibility and syntax
     - _Requirements: 5.1, 5.2_
-  - [ ] 1.2 Implement immutable field change detection tool
+  - [x] 1.2 Implement immutable field change detection tool
     - Build tool to detect changes to immutable Kubernetes fields
     - Create mapping of known immutable fields by resource type
     - _Requirements: 1.1, 1.3_
@@ -19,19 +19,27 @@
     - _Requirements: 5.2, 8.2_
 
 - [ ] 2. Implement reconciliation health monitoring
-  - [ ] 2.1 Create Flux reconciliation metrics collection
-    - Extend existing Prometheus setup to collect Flux-specific metrics
+  - [x] 2.1 Redesign monitoring stack with hybrid storage architecture
+    - Clean up existing stuck monitoring resources and PVCs
+    - Implement ephemeral core monitoring (Prometheus + Grafana) with emptyDir storage for immediate visibility
+    - Create separate long-term monitoring tier using Longhorn for historical data retention
+    - Ensure core monitoring remains operational during storage failures (bulletproof architecture)
+    - Configure remote_write from ephemeral to persistent tier for data continuity
+    - Design storage tiers in preparation for future KubeVirt workloads
+    - _Requirements: 4.1, 4.2, Bulletproof Architecture_
+  - [ ] 2.2 Create Flux reconciliation metrics collection
+    - Extend hybrid Prometheus setup to collect Flux-specific metrics
     - Add ServiceMonitor for Flux controllers
     - _Requirements: 4.1, 4.2_
-  - [ ] 2.2 Write alert rules for stuck reconciliations
+  - [ ] 2.3 Write alert rules for stuck reconciliations
     - Create PrometheusRule for stuck kustomizations and failed reconciliations
     - Configure alert thresholds and escalation policies
     - _Requirements: 4.2, 4.3_
-  - [ ] 2.3 Build GitOps health monitoring dashboard
+  - [ ] 2.4 Build GitOps health monitoring dashboard
     - Create Grafana dashboard for Flux reconciliation visibility
     - Add panels for reconciliation timing, error rates, and resource status
     - _Requirements: 4.1, 4.4_
-  - [ ] 2.4 Test alerting with simulated stuck states
+  - [ ] 2.5 Test alerting with simulated stuck states
     - Create test scenarios to validate alert firing
     - Verify alert routing and notification delivery
     - _Requirements: 4.3, 4.4_

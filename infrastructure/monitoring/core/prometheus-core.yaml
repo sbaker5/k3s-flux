@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: prometheus-core
+  name: monitoring-core-prometheus
   namespace: monitoring
 spec:
   interval: 5m
@@ -61,13 +61,12 @@ spec:
         ruleNamespaceSelector: {}
         # Remote write configuration for sending data to long-term storage
         # This will be automatically used when long-term monitoring is enabled
-        remoteWrite:
-          - url: http://monitoring-longterm-prometheus-longterm-prometheus:9090/api/v1/write
-            # Only send if long-term monitoring service exists
-            writeRelabelConfigs:
-              - sourceLabels: [__name__]
-                regex: ".*"
-                action: keep
+        # remoteWrite:
+        #   - url: http://monitoring-longterm-prometheus-longterm-kube-prom-prometheus:9090/api/v1/write
+        #     writeRelabelConfigs:
+        #       - sourceLabels: [__name__]
+        #         regex: ".*"
+        #         action: keep
         # Scrape config for Longhorn and other services
         additionalScrapeConfigs:
           - job_name: "longhorn-prometheus-servicemonitor"

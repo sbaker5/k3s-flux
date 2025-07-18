@@ -4,9 +4,9 @@ kind: Kustomization
 # Core monitoring - ephemeral, bulletproof
 resources:
   - namespace.yaml
-  - helm-repository.yaml
   - prometheus-core.yaml
   - grafana-core.yaml
+  - grafana-secret.yaml
   - servicemonitor.yaml
 
 # Common labels for core monitoring
@@ -17,8 +17,7 @@ commonLabels:
   app.kubernetes.io/part-of: k3s-flux
   monitoring.k3s-flux.io/tier: core
 
-# Name prefix for core resources
-namePrefix: monitoring-core-
+# Explicit resource names instead of prefix to avoid reference issues
 
 # Set the namespace
 namespace: monitoring

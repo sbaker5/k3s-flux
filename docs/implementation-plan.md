@@ -4,12 +4,13 @@
 1. [Current Issues](#current-issues)
 2. [Immediate Actions](#immediate-actions)
 3. [Network Troubleshooting](#network-troubleshooting)
-4. [GitOps Implementation](#gitops-implementation)
-5. [Security Enhancements](#security-enhancements)
-6. [Monitoring & Observability](#monitoring--observability)
-7. [Backup & Recovery](#backup--recovery)
-8. [Documentation](#documentation)
-9. [Long-term Improvements](#long-term-improvements)
+4. [GitOps Resilience Patterns](#gitops-resilience-patterns)
+5. [GitOps Implementation](#gitops-implementation)
+6. [Security Enhancements](#security-enhancements)
+7. [Monitoring & Observability](#monitoring--observability)
+8. [Backup & Recovery](#backup--recovery)
+9. [Documentation](#documentation)
+10. [Long-term Improvements](#long-term-improvements)
 
 ## Current Issues
 
@@ -79,6 +80,134 @@ kubectl run test-pod2 --image=busybox -- sleep 3600
 kubectl exec -it test-pod1 -- ping test-pod2
 ```
 
+## GitOps Resilience Patterns
+
+### Current Implementation Status
+
+**✅ Completed Components:**
+- **Pre-commit validation infrastructure** - Kustomization build validation with comprehensive error detection
+- **Immutable field conflict detection** - Advanced tool detecting breaking changes across 10+ resource types
+- **Emergency recovery procedures** - Comprehensive troubleshooting guide with manual recovery procedures
+- **Validation scripts** - Automated tools for preventing deployment failures
+
+**🚧 In Progress:**
+- **Reconciliation health monitoring** - Hybrid monitoring architecture with bulletproof core tier
+- **Monitoring cleanup procedures** - Automated cleanup of stuck monitoring resources and PVCs
+- **KubeVirt preparation** - Storage tier design for future VM workloads
+- **Automated recovery system** - Pattern-based recovery automation for common failure scenarios
+- **Resource lifecycle management** - Blue-green deployment patterns for immutable resources
+
+### Available Tools
+
+#### 1. Kustomization Build Validation
+```bash
+# Validate all kustomization builds
+./scripts/validate-kustomizations.sh
+
+# Checks 9+ directories for build errors
+# Catches YAML syntax errors, missing resources, invalid configurations
+```
+
+#### 2. Immutable Field Change Detection
+```bash
+# Check for breaking changes between commits
+./scripts/check-immutable-fields.sh
+
+# Compare specific branches
+./scripts/check-immutable-fields.sh -b main -h feature-branch
+
+# Detects changes to immutable fields in:
+# - Deployments (spec.selector)
+# - Services (spec.clusterIP, spec.type)
+# - StatefulSets (spec.selector, spec.serviceName)
+# - PVCs (spec.accessModes, spec.resources.requests.storage)
+# - And 6+ other resource types
+```
+
+#### 3. Emergency Recovery Procedures
+- **Location**: `docs/troubleshooting/flux-recovery-guide.md`
+- **Covers**: Namespace stuck states, authentication failures, controller recovery
+- **Includes**: Step-by-step recovery procedures and verification checklists
+
+#### 4. Monitoring Cleanup Procedures
+```bash
+# Clean up stuck monitoring resources and PVCs
+./scripts/cleanup-stuck-monitoring.sh
+
+# Features:
+# - Removes stuck PVCs with finalizer cleanup
+# - Cleans up failed HelmReleases
+# - Removes orphaned Helm secrets
+# - Suspends/resumes monitoring kustomization safely
+```
+
+### Next Implementation Steps
+
+#### Phase 1: Monitoring Infrastructure (In Progress)
+```bash
+# 1. Extend Prometheus setup for Flux metrics
+kubectl apply -f infrastructure/monitoring/
+
+# 2. Add Flux-specific ServiceMonitor
+# 3. Create PrometheusRule for stuck reconciliations
+# 4. Build Grafana dashboard for GitOps health
+```
+
+#### Phase 2: Automated Recovery System
+```yaml
+# Recovery automation configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flux-recovery-config
+data:
+  recovery-patterns.yaml: |
+    patterns:
+    - error_pattern: "field is immutable"
+      recovery_action: "recreate_resource"
+      max_retries: 3
+    - error_pattern: "dry-run failed.*Invalid.*spec.selector"
+      recovery_action: "recreate_deployment"
+      cleanup_dependencies: true
+```
+
+#### Phase 3: Resource Lifecycle Management
+- Blue-green deployment strategies for immutable resources
+- Atomic resource replacement tooling
+- Dependency-aware update ordering
+
+### Integration with CI/CD
+
+#### Pre-commit Hooks Setup
+```bash
+# Install pre-commit framework
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+
+# Manual validation
+pre-commit run --all-files
+```
+
+#### Git Hook Configuration
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: validate-kustomizations
+        name: Validate Kustomizations
+        entry: ./scripts/validate-kustomizations.sh
+        language: script
+        pass_filenames: false
+      - id: check-immutable-fields
+        name: Check Immutable Fields
+        entry: ./scripts/check-immutable-fields.sh
+        language: script
+        pass_filenames: false
+```
+
 ## GitOps Implementation
 
 ### 1. Flux CD Health Check
@@ -134,23 +263,56 @@ apiServer:
 
 ## Monitoring & Observability
 
-### 1. Deploy Prometheus Operator
-```bash
-# Add Prometheus Community Helm repo
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
+### 1. Hybrid Monitoring Architecture (In Progress)
 
-# Install kube-prometheus-stack
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --create-namespace
+**Design**: Bulletproof core monitoring + optional long-term storage
+
+```
+Core Tier (Always Available)     │  Long-term Tier (Optional)
+├─ Prometheus Core (2h retention) │  ├─ Prometheus LT (30d retention)
+│  └─ emptyDir storage            │  │  └─ Longhorn storage
+├─ Grafana Core (ephemeral)       │  ├─ Grafana LT (persistent)
+│  └─ Essential dashboards        │  │  └─ Full feature dashboards
+└─ Node/KSM exporters             │  └─ Alertmanager
 ```
 
-### 2. Configure Longhorn Metrics
+**Deployment Steps**:
+```bash
+# 1. Clean up any stuck monitoring resources
+./scripts/cleanup-stuck-monitoring.sh
+
+# 2. Deploy core monitoring (bulletproof)
+flux reconcile kustomization monitoring -n flux-system
+
+# 3. Verify core monitoring health
+kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core
+
+# 4. (Optional) Enable long-term monitoring when Longhorn is stable
+# Edit infrastructure/monitoring/kustomization.yaml
+# Uncomment: - longterm/
+```
+
+**Benefits**:
+- ✅ **Bulletproof**: Core monitoring survives storage failures
+- ✅ **Fast recovery**: Ephemeral storage enables quick restarts
+- ✅ **Data continuity**: remote_write from core to long-term tier
+- ✅ **KubeVirt ready**: Storage architecture prepared for VM workloads
+
+### 2. Legacy Monitoring Migration
+```bash
+# Remove old monitoring stack if present
+kubectl delete helmrelease -n monitoring --all
+kubectl delete pvc -n monitoring --all
+
+# Deploy new hybrid architecture
+flux reconcile kustomization monitoring -n flux-system
+```
+
+### 3. Configure Longhorn Metrics
 ```yaml
 # In Longhorn values.yaml
 defaultSettings:
-  metricsServer: "http://prometheus-operated.monitoring:9090"
+  metricsServer: "http://monitoring-core-prometheus-core-prometheus:9090"
 ```
 
 ## Backup & Recovery

@@ -14,6 +14,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 - [NGINX Ingress](docs/nginx-ingress-setup.md) - Configuration and usage of the NGINX Ingress Controller
 - [Longhorn Storage](docs/longhorn-setup.md) - Distributed block storage setup and management
 - [Application Management](docs/application-management.md) - Managing applications with Kustomize
+- [GitOps Resilience Patterns](docs/gitops-resilience-patterns.md) - Comprehensive resilience system for preventing infrastructure lock-ups
 
 ### Operations
 - [Troubleshooting Guide](docs/troubleshooting/flux-recovery-guide.md) - Recovering from common issues
@@ -22,17 +23,18 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 - [Test Resources](#test-resources) - Test configurations and examples
 
 ### Advanced Features
-- **GitOps Resilience Patterns** - Automated recovery mechanisms and validation pipelines to prevent infrastructure lock-ups and ensure smooth deployments
-  - ✅ Pre-commit validation infrastructure with kustomization build validation
-  - ✅ Comprehensive troubleshooting and recovery documentation
-  - ✅ Emergency recovery procedures and operational runbooks
-  - 🚧 Immutable field conflict detection and automated recovery
-  - 🚧 Reconciliation health monitoring and alerting
-  - 🚧 Automated recovery system for stuck reconciliations
-  - 🚧 Resource lifecycle management with blue-green deployment patterns
-  - 🚧 Change impact analysis and staged deployment validation
+- **GitOps Resilience Patterns** - Comprehensive resilience system preventing infrastructure lock-ups and ensuring reliable deployments
+  - ✅ **Pre-commit validation infrastructure** - Kustomization build validation and syntax checking
+  - ✅ **Immutable field conflict detection** - Advanced tool detecting breaking changes before deployment
+  - ✅ **Comprehensive troubleshooting documentation** - Recovery procedures for common failure scenarios
+  - ✅ **Emergency recovery procedures** - Manual intervention guides and operational runbooks
+  - 🚧 **Reconciliation health monitoring** - Hybrid monitoring architecture with bulletproof core tier
+  - 🚧 **Automated recovery system** - Pattern-based recovery for stuck Flux reconciliations
+  - 🚧 **Resource lifecycle management** - Blue-green deployment patterns for immutable resources
+  - 🚧 **Change impact analysis** - Dependency mapping and cascade effect analysis
+  - 🚧 **Staged deployment validation** - Multi-stage rollout with validation gates
 
-See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/) for detailed implementation roadmap.
+See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/) for detailed implementation roadmap and [Validation Scripts](scripts/README.md) for current tooling.
 
 ## 🚀 Getting Started
 
@@ -180,7 +182,14 @@ tests/
 
 ## Useful Commands
 
+### GitOps Operations
 - View Flux resources: `kubectl get kustomizations,kustomizations -A`
 - Check Flux logs: `kubectl logs -n flux-system -l app=source-controller`
 - Get cluster info: `kubectl cluster-info`
 - Validate kustomizations: `./scripts/validate-kustomizations.sh`
+- Check for immutable field conflicts: `./scripts/check-immutable-fields.sh`
+
+### Monitoring Operations
+- Clean up stuck monitoring resources: `./scripts/cleanup-stuck-monitoring.sh`
+- Access core monitoring: `kubectl port-forward -n monitoring svc/monitoring-core-grafana-core 3000:80`
+- Check monitoring health: `kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core`

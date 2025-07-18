@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: grafana-core
+  name: monitoring-core-grafana
   namespace: monitoring
 spec:
   interval: 5m
@@ -24,9 +24,11 @@ spec:
       remediateLastFailure: true
     timeout: 3m
   values:
-    # Admin credentials (use secret in production)
-    adminUser: admin
-    adminPassword: admin
+    # Admin credentials from secret
+    admin:
+      existingSecret: monitoring-core-grafana-admin-credentials
+      userKey: admin-user
+      passwordKey: admin-password
 
     # Ephemeral storage - no persistence
     persistence:
@@ -48,7 +50,7 @@ spec:
         datasources:
           - name: Prometheus-Core
             type: prometheus
-            url: http://monitoring-core-prometheus-core-kube-prom-prometheus:9090
+            url: http://monitoring-core-prometheus-kube-prom-prometheus:9090
             access: proxy
             isDefault: true
             editable: true
@@ -129,6 +131,5 @@ spec:
 
     # Environment variables
     env:
-      GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: false
       GF_INSTALL_PLUGINS: ""
