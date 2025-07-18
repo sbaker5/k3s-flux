@@ -7,13 +7,8 @@ resources:
   - ingress.yaml
   - service.yaml
 
-# Common labels to be applied to all resources
-labels:
-  - pairs:
-      app.kubernetes.io/name: example-app
-      app.kubernetes.io/part-of: example-app
-      app.kubernetes.io/managed-by: flux
-      app.kubernetes.io/component: backend
+# Note: Avoiding commonLabels to prevent immutable field conflicts with deployment selectors
+# Labels are applied directly in the resource manifests instead
 
 # Common annotations
 commonAnnotations:
