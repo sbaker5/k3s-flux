@@ -1,0 +1,129 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-longterm
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "75.6.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 1h
+  install:
+    createNamespace: false # Namespace already exists
+    disableWait: false
+    timeout: 15m # Longer timeout for persistent setup
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      remediateLastFailure: true
+    timeout: 15m
+  values:
+    # Don't install CRDs (already installed by core)
+    crds:
+      create: false
+      install: false
+
+    # Long-term Prometheus - persistent storage
+    prometheus:
+      enabled: true
+      prometheusSpec:
+        # Long retention for historical data
+        retention: 30d
+        # Use Longhorn for persistent storage
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: longhorn
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 100Gi
+        # Resource limits for long-term monitoring
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 2Gi
+        # Enable service discovery
+        serviceMonitorSelectorNilUsesHelmValues: false
+        serviceMonitorSelector: {}
+        serviceMonitorNamespaceSelector: {}
+        podMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelector: {}
+        podMonitorNamespaceSelector: {}
+        ruleSelectorNilUsesHelmValues: false
+        ruleSelector: {}
+        ruleNamespaceSelector: {}
+        # Remote write configuration to receive from core
+        remoteWrite: []
+        # Additional scrape configs for comprehensive monitoring
+        additionalScrapeConfigs:
+          - job_name: "longhorn-prometheus-servicemonitor"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - longhorn-system
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_label_app]
+                action: keep
+                regex: longhorn-manager
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: manager
+          - job_name: "flux-system"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - flux-system
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: keep
+                regex: "(source-controller|kustomize-controller|helm-controller|notification-controller)"
+
+    # Disable Grafana in long-term (separate deployment)
+    grafana:
+      enabled: false
+
+    # Enable Alertmanager for long-term monitoring
+    alertmanager:
+      enabled: true
+      alertmanagerSpec:
+        retention: 168h # 7 days
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: longhorn
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 10Gi
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+    # Disable node exporter (already running in core)
+    prometheus-node-exporter:
+      enabled: false
+
+    # Disable kube-state-metrics (already running in core)
+    kube-state-metrics:
+      enabled: false
+
+    # Disable Prometheus Operator (already running in core)
+    prometheusOperator:
+      enabled: false

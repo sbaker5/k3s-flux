@@ -1,0 +1,149 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-core
+  namespace: monitoring
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "75.6.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 1h
+  install:
+    createNamespace: false # Namespace already exists
+    disableWait: false
+    timeout: 5m # Shorter timeout for ephemeral setup
+    remediation:
+      retries: 2
+  upgrade:
+    remediation:
+      remediateLastFailure: true
+    timeout: 5m
+  values:
+    # Install CRDs (required for Prometheus Operator)
+    crds:
+      create: true
+      install: true
+
+    # Namespace for CRDs
+    crdsNamespace: monitoring
+
+    # Core Prometheus - ephemeral storage
+    prometheus:
+      enabled: true
+      prometheusSpec:
+        # Short retention for core monitoring
+        retention: 2h
+        # Use emptyDir for bulletproof operation
+        storageSpec: {} # No persistent storage
+        # Resource limits for core monitoring
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        # Enable service discovery
+        serviceMonitorSelectorNilUsesHelmValues: false
+        serviceMonitorSelector: {}
+        serviceMonitorNamespaceSelector: {}
+        podMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelector: {}
+        podMonitorNamespaceSelector: {}
+        ruleSelectorNilUsesHelmValues: false
+        ruleSelector: {}
+        ruleNamespaceSelector: {}
+        # Remote write configuration for sending data to long-term storage
+        # This will be automatically used when long-term monitoring is enabled
+        remoteWrite:
+          - url: http://monitoring-longterm-prometheus-longterm-prometheus:9090/api/v1/write
+            # Only send if long-term monitoring service exists
+            writeRelabelConfigs:
+              - sourceLabels: [__name__]
+                regex: ".*"
+                action: keep
+        # Scrape config for Longhorn and other services
+        additionalScrapeConfigs:
+          - job_name: "longhorn-prometheus-servicemonitor"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - longhorn-system
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_label_app]
+                action: keep
+                regex: longhorn-manager
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: manager
+          - job_name: "flux-system"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - flux-system
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_name]
+                action: keep
+                regex: "(source-controller|kustomize-controller|helm-controller|notification-controller)"
+
+    # Disable Grafana in core (separate deployment)
+    grafana:
+      enabled: false
+
+    # Disable Alertmanager in core (can be added to long-term if needed)
+    alertmanager:
+      enabled: false
+
+    # Enable node exporter for system metrics
+    prometheus-node-exporter:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+    # Enable kube-state-metrics for cluster state
+    kube-state-metrics:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+
+    # Prometheus Operator configuration
+    prometheusOperator:
+      enabled: true
+      # Disable TLS for simplicity in core setup
+      tls:
+        enabled: false
+      admissionWebhooks:
+        enabled: false
+      tlsProxy:
+        enabled: false
+      kubeletService:
+        enabled: false
+      # Resource limits for operator
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      # Self-monitoring disabled to reduce complexity
+      serviceMonitor:
+        selfMonitor: false

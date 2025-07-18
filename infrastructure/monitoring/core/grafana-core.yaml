@@ -1,0 +1,135 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana-core
+  namespace: monitoring
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: grafana
+      version: "8.5.2"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 1h
+  install:
+    createNamespace: false
+    disableWait: false
+    timeout: 3m
+    remediation:
+      retries: 2
+  upgrade:
+    remediation:
+      remediateLastFailure: true
+    timeout: 3m
+  values:
+    # Admin credentials (use secret in production)
+    adminUser: admin
+    adminPassword: admin
+
+    # Ephemeral storage - no persistence
+    persistence:
+      enabled: false
+
+    # Resource limits for core Grafana
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # Data sources
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus-Core
+            type: prometheus
+            url: http://monitoring-core-prometheus-core-prometheus:9090
+            access: proxy
+            isDefault: true
+            editable: true
+
+    # Dashboard providers - load from ConfigMaps
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: "default"
+            orgId: 1
+            folder: ""
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+          - name: "longhorn"
+            orgId: 1
+            folder: "Longhorn"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/longhorn
+          - name: "flux"
+            orgId: 1
+            folder: "Flux"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/flux
+
+    # Essential dashboards loaded from ConfigMaps
+    dashboards:
+      default:
+        kubernetes-cluster:
+          gnetId: 7249
+          revision: 1
+          datasource: Prometheus-Core
+        kubernetes-pods:
+          gnetId: 6336
+          revision: 1
+          datasource: Prometheus-Core
+        node-exporter:
+          gnetId: 1860
+          revision: 37
+          datasource: Prometheus-Core
+      longhorn:
+        longhorn-dashboard:
+          url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn-grafana-dashboard.json
+          datasource: Prometheus-Core
+      flux:
+        flux-cluster:
+          gnetId: 16714
+          revision: 1
+          datasource: Prometheus-Core
+        flux-control-plane:
+          gnetId: 16713
+          revision: 1
+          datasource: Prometheus-Core
+
+    # Service configuration
+    service:
+      type: ClusterIP
+      port: 80
+
+    # Security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 472
+      fsGroup: 472
+
+    # Disable unnecessary features for core setup
+    imageRenderer:
+      enabled: false
+
+    # Environment variables
+    env:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: ""

@@ -2,8 +2,23 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monitoring
 
-# CRDs must be installed first
+# Hybrid monitoring architecture:
+# - Core: Ephemeral monitoring for immediate visibility (bulletproof)
+# - Longterm: Persistent monitoring for historical data (optional)
+
 resources:
+  # Shared resources
   - helm-repository.yaml
   - prometheus-operator.yaml
-  - base/
+
+  # Core monitoring - ephemeral, always available
+  - core/
+
+  # Long-term monitoring - persistent storage (optional)
+  # Uncomment when Longhorn is stable and you need historical data
+  # - longterm/
+
+# Common labels for all monitoring resources
+commonLabels:
+  app.kubernetes.io/part-of: k3s-flux-monitoring
+  monitoring.k3s-flux.io/architecture: hybrid

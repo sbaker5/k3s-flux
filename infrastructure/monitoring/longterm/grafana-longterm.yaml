@@ -1,0 +1,195 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana-longterm
+  namespace: monitoring
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: grafana
+      version: "8.5.2"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: monitoring
+      interval: 1h
+  install:
+    createNamespace: false
+    disableWait: false
+    timeout: 10m
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      remediateLastFailure: true
+    timeout: 10m
+  values:
+    # Admin credentials (use secret in production)
+    adminUser: admin
+    adminPassword: admin-longterm
+
+    # Persistent storage using Longhorn
+    persistence:
+      enabled: true
+      storageClassName: longhorn
+      size: 20Gi
+      accessModes:
+        - ReadWriteOnce
+
+    # Resource limits for long-term Grafana
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Data sources - both core and long-term Prometheus
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus-Core
+            type: prometheus
+            url: http://monitoring-core-prometheus-core-prometheus:9090
+            access: proxy
+            isDefault: false
+            editable: true
+            jsonData:
+              timeInterval: "30s"
+          - name: Prometheus-Longterm
+            type: prometheus
+            url: http://monitoring-longterm-prometheus-longterm-prometheus:9090
+            access: proxy
+            isDefault: true
+            editable: true
+            jsonData:
+              timeInterval: "1m"
+
+    # Dashboard providers - comprehensive dashboards
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: "default"
+            orgId: 1
+            folder: ""
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+          - name: "longhorn"
+            orgId: 1
+            folder: "Longhorn"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/longhorn
+          - name: "flux"
+            orgId: 1
+            folder: "Flux"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/flux
+          - name: "infrastructure"
+            orgId: 1
+            folder: "Infrastructure"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/infrastructure
+
+    # Comprehensive dashboards for long-term analysis
+    dashboards:
+      default:
+        kubernetes-cluster:
+          gnetId: 7249
+          revision: 1
+          datasource: Prometheus-Longterm
+        kubernetes-pods:
+          gnetId: 6336
+          revision: 1
+          datasource: Prometheus-Longterm
+        node-exporter:
+          gnetId: 1860
+          revision: 37
+          datasource: Prometheus-Longterm
+        kubernetes-capacity:
+          gnetId: 5309
+          revision: 1
+          datasource: Prometheus-Longterm
+      longhorn:
+        longhorn-dashboard:
+          url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn-grafana-dashboard.json
+          datasource: Prometheus-Longterm
+      flux:
+        flux-cluster:
+          gnetId: 16714
+          revision: 1
+          datasource: Prometheus-Longterm
+        flux-control-plane:
+          gnetId: 16713
+          revision: 1
+          datasource: Prometheus-Longterm
+      infrastructure:
+        prometheus-stats:
+          gnetId: 2
+          revision: 2
+          datasource: Prometheus-Longterm
+
+    # Service configuration with NodePort for external access
+    service:
+      type: NodePort
+      port: 80
+      nodePort: 30300
+
+    # Security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 472
+      fsGroup: 472
+
+    # Enable image renderer for PDF exports
+    imageRenderer:
+      enabled: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+    # Environment variables
+    env:
+      GF_SECURITY_ADMIN_PASSWORD: admin-longterm
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: "grafana-piechart-panel,grafana-worldmap-panel"
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
+
+    # SMTP configuration (optional)
+    smtp:
+      enabled: false
+
+    # Alerting configuration
+    alerting:
+      rules.yaml:
+        apiVersion: 1
+        groups:
+          - name: infrastructure.rules
+            rules:
+              - alert: HighMemoryUsage
+                expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 80
+                for: 5m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: "High memory usage detected"
+                  description: "Memory usage is above 80% on {{ $labels.instance }}"

@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Long-term monitoring - persistent storage (optional)
+resources:
+  - prometheus-longterm.yaml
+  - grafana-longterm.yaml
+
+# Common labels for long-term monitoring
+commonLabels:
+  app.kubernetes.io/name: monitoring-longterm
+  app.kubernetes.io/instance: monitoring-longterm
+  app.kubernetes.io/managed-by: flux
+  app.kubernetes.io/part-of: k3s-flux
+  monitoring.k3s-flux.io/tier: longterm
+
+# Name prefix for long-term resources
+namePrefix: monitoring-longterm-
+
+# Set the namespace
+namespace: monitoring
