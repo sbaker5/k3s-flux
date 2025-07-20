@@ -47,15 +47,22 @@ jq '.data' file.json
 ## Pre-commit Hook Issues
 
 ### YAML Validation Failures
-The pre-commit hooks may fail YAML validation even when files are syntactically correct. Common issues:
+The pre-commit hooks use a multi-step validation strategy. Understanding this helps debug validation issues:
 
-1. **Kustomization files**: kubectl can't validate Kustomization CRDs directly
-   - Use: `kubectl kustomize path/` instead
-   - Or: `kustomize build path/`
+**Validation Flow by File Type:**
 
-2. **Custom Resource Definitions**: May not be installed in validation environment
+1. **Kustomization files** (`kustomization.yaml`):
+   - ✅ YAML syntax: `yamllint -d relaxed`
+   - ✅ Build validation: `kubectl kustomize path/` (proper tool)
+   - ❌ kubectl dry-run: SKIPPED (Kustomization is Flux CRD, not standard K8s)
+
+2. **Standard Kubernetes resources** (`.yaml` files):
+   - ✅ YAML syntax: `yamllint -d relaxed`
+   - ✅ kubectl dry-run: `kubectl apply --dry-run=client`
+
+3. **Custom Resource Definitions**: May not be installed in validation environment
    - ServiceMonitor, PodMonitor, HelmRelease, etc.
-   - These are valid but kubectl dry-run may fail
+   - These are valid but kubectl dry-run may fail if CRDs aren't installed
 
 ### Bypassing Validation (When Necessary)
 ```bash
