@@ -25,6 +25,11 @@
    - [Final Checks](#final-checks)
    - [GitOps Best Practices](#gitops-best-practices)
    - [Recovery Procedures](#recovery-procedures)
+7. [Phase 5: Monitoring Setup](#phase-5-monitoring-setup)
+   - [Hybrid Monitoring Architecture](#hybrid-monitoring-architecture)
+   - [Flux Metrics Collection](#flux-metrics-collection)
+   - [Grafana Dashboard Access](#grafana-dashboard-access)
+   - [Monitoring Verification](#monitoring-verification)
 
 ## Introduction
 
@@ -588,6 +593,91 @@ kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
    - Document node replacement procedures
    - Keep installation media and configuration handy
    - Test node recovery procedures periodically
+
+## Phase 5: Monitoring Setup
+
+### Hybrid Monitoring Architecture
+
+The cluster uses a hybrid monitoring architecture designed for resilience:
+
+- **Core Tier**: Bulletproof monitoring that survives storage failures
+- **Long-term Tier**: Optional persistent monitoring (requires stable Longhorn)
+
+```bash
+# Deploy core monitoring (always available)
+flux reconcile kustomization monitoring -n flux-system
+
+# Verify core monitoring deployment
+kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core
+```
+
+### Flux Metrics Collection
+
+Flux controllers expose metrics for monitoring GitOps operations. Due to the mixed service/pod architecture of Flux controllers, we use both ServiceMonitor and PodMonitor for comprehensive coverage:
+
+**Controller Architecture:**
+- **Controllers WITH Services**: source-controller, notification-controller
+- **Controllers WITHOUT Services**: kustomize-controller, helm-controller (pod metrics only)
+
+**Key Metrics Available:**
+- `controller_runtime_reconcile_total` - Total reconciliations per controller
+- `controller_runtime_reconcile_time_seconds_*` - Reconciliation duration
+- `controller_runtime_reconcile_errors_total` - Reconciliation errors
+- `gotk_reconcile_condition` - Current reconciliation status
+
+**Architecture Notes:**
+- Some controllers (source, notification) have services
+- Others (kustomize, helm) only expose pod metrics
+- Both ServiceMonitor and PodMonitor are used for complete coverage
+
+### Grafana Dashboard Access
+
+Access Grafana for monitoring dashboards:
+
+```bash
+# Port forward to Grafana
+kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80
+
+# Default credentials (change after first login)
+# Username: admin
+# Password: changeme-secure-password
+```
+
+**Pre-configured Dashboards:**
+- Kubernetes Cluster Overview (ID: 7249)
+- Kubernetes Pods (ID: 6336)
+- Node Exporter (ID: 1860)
+- Flux Cluster (ID: 16714)
+- Flux Control Plane (ID: 16713)
+- Longhorn Dashboard (custom)
+
+### Monitoring Verification
+
+Verify monitoring is collecting Flux metrics:
+
+```bash
+# Port forward to Prometheus
+kubectl port-forward -n monitoring svc/monitoring-core-prometheus-kube-prom-prometheus 9090:9090
+
+# Test Flux metrics collection
+curl -s "http://localhost:9090/api/v1/query?query=controller_runtime_active_workers" | jq '.data.result[] | select(.metric.controller != null)'
+
+# Check reconciliation metrics
+curl -s "http://localhost:9090/api/v1/query?query=controller_runtime_reconcile_total" | jq '.data.result[] | {controller: .metric.controller, result: .metric.result, value: .value[1]}'
+```
+
+**Troubleshooting:**
+- If metrics are missing, check both ServiceMonitor and PodMonitor resources
+- Verify controllers are running: `kubectl get pods -n flux-system`
+- Check metrics endpoints directly: `kubectl exec -n flux-system deployment/source-controller -- wget -qO- http://localhost:8080/metrics`
+
+**Monitoring Implementation:**
+- **ServiceMonitor**: Monitors controllers with services (source, notification)
+- **PodMonitor**: Monitors all controllers directly via pods (comprehensive coverage)
+- **Metric Filtering**: Reduces cardinality by filtering to Flux-specific metrics
+- **Labels Added**: cluster, controller, namespace, pod, and node context
+
+For detailed monitoring architecture, troubleshooting procedures, and metric specifications, see the [Flux Monitoring Guide](.kiro/steering/flux-monitoring.md).
 
 ## Conclusion
 

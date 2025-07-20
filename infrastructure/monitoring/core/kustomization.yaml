@@ -1,3 +1,4 @@
+---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -8,6 +9,7 @@ resources:
   - grafana-core.yaml
   - grafana-secret.yaml
   - servicemonitor.yaml
+  - flux-servicemonitor.yaml
 
 # Common labels for core monitoring
 commonLabels:

@@ -1,0 +1,106 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: flux-controllers-with-services
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: flux-controllers-with-services
+    app.kubernetes.io/instance: flux-controllers-with-services
+    app.kubernetes.io/part-of: flux
+    monitoring.k3s-flux.io/component: flux-metrics
+spec:
+  # Monitor Flux controllers that have services
+  # (source-controller, notification-controller)
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+      control-plane: controller
+  endpoints:
+    # Metrics endpoint for Flux controllers with services
+    - port: http-prom
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        # Add controller name from service labels
+        - sourceLabels:
+            - __meta_kubernetes_service_label_app_kubernetes_io_component
+          targetLabel: controller
+        # Add namespace
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        # Add service name
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+        # Add pod information
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+      metricRelabelings:
+        # Keep only Flux-specific metrics to reduce cardinality
+        - sourceLabels: [__name__]
+          regex: "flux_.*|gotk_.*|controller_runtime_.*"
+          action: keep
+        # Add cluster label for multi-cluster setups
+        - targetLabel: cluster
+          replacement: k3s-flux
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-controllers-pods
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: flux-controllers-pods
+    app.kubernetes.io/instance: flux-controllers-pods
+    app.kubernetes.io/part-of: flux
+    monitoring.k3s-flux.io/component: flux-metrics
+spec:
+  # Monitor all Flux controller pods directly
+  # (including those without services)
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - source-controller
+          - kustomize-controller
+          - helm-controller
+          - notification-controller
+  podMetricsEndpoints:
+    # Metrics endpoint for all Flux controllers
+    - port: http-prom
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        # Add controller name from pod labels
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: controller
+        # Add namespace
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        # Add pod information
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        # Add cluster label
+        - targetLabel: cluster
+          replacement: k3s-flux
+      metricRelabelings:
+        # Keep Flux and controller runtime metrics
+        - sourceLabels: [__name__]
+          regex: >-
+            flux_.*|gotk_.*|controller_runtime_.*|workqueue_.*|rest_client_.*
+          action: keep

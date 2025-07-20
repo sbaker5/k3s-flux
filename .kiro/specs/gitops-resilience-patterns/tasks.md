@@ -9,11 +9,11 @@
     - Build tool to detect changes to immutable Kubernetes fields
     - Create mapping of known immutable fields by resource type
     - _Requirements: 1.1, 1.3_
-  - [ ] 1.3 Create Git pre-commit hook configuration
+  - [x] 1.3 Create Git pre-commit hook configuration
     - Set up pre-commit framework with validation hooks
     - Configure automatic execution of validation scripts
     - _Requirements: 5.1, 8.1_
-  - [ ] 1.4 Test validation pipeline with sample changes
+  - [x] 1.4 Test validation pipeline with sample changes
     - Create test cases for common breaking changes
     - Validate hook prevents problematic commits
     - _Requirements: 5.2, 8.2_
@@ -27,9 +27,10 @@
     - Configure remote_write from ephemeral to persistent tier for data continuity
     - Design storage tiers in preparation for future KubeVirt workloads
     - _Requirements: 4.1, 4.2, Bulletproof Architecture_
-  - [ ] 2.2 Create Flux reconciliation metrics collection
+  - [x] 2.2 Create Flux reconciliation metrics collection
     - Extend hybrid Prometheus setup to collect Flux-specific metrics
-    - Add ServiceMonitor for Flux controllers
+    - Add hybrid ServiceMonitor + PodMonitor for comprehensive Flux controller coverage
+    - Document Flux controller architecture and monitoring implementation
     - _Requirements: 4.1, 4.2_
   - [ ] 2.3 Write alert rules for stuck reconciliations
     - Create PrometheusRule for stuck kustomizations and failed reconciliations
