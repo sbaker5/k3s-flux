@@ -32,15 +32,15 @@
     - Add hybrid ServiceMonitor + PodMonitor for comprehensive Flux controller coverage
     - Document Flux controller architecture and monitoring implementation
     - _Requirements: 4.1, 4.2_
-  - [ ] 2.3 Write alert rules for stuck reconciliations
+  - [x] 2.3 Write alert rules for stuck reconciliations
     - Create PrometheusRule for stuck kustomizations and failed reconciliations
     - Configure alert thresholds and escalation policies
     - _Requirements: 4.2, 4.3_
-  - [ ] 2.4 Build GitOps health monitoring dashboard
+  - [x] 2.4 Build GitOps health monitoring dashboard
     - Create Grafana dashboard for Flux reconciliation visibility
     - Add panels for reconciliation timing, error rates, and resource status
     - _Requirements: 4.1, 4.4_
-  - [ ] 2.5 Test alerting with simulated stuck states
+  - [x] 2.5 Test alerting with simulated stuck states
     - Create test scenarios to validate alert firing
     - Verify alert routing and notification delivery
     - _Requirements: 4.3, 4.4_
@@ -188,3 +188,41 @@
     - Create metrics collection for recovery effectiveness
     - Build feedback loops for improving resilience patterns
     - _Requirements: 4.4, 7.4_
+
+- [ ] 11. Code Quality and Documentation Improvements
+  - [ ] 11.1 Improve pre-commit documentation accuracy
+    - Fix inconsistent validation step descriptions between docs and implementation
+    - Add detailed validation strategy explanations for each file type
+    - Include specific recovery procedures for each validation step failure
+    - Add coverage for additional file types (patch files, Helm values, SOPS encrypted)
+    - _Requirements: Documentation Quality, User Experience_
+  - [ ] 11.2 Enhance shell script robustness and consistency
+    - Standardize error handling patterns across all validation scripts
+    - Improve temporary file cleanup with robust trap handlers
+    - Fix variable quoting inconsistencies
+    - Add consistent `set -euo pipefail` usage
+    - _Requirements: Code Quality, Maintainability_
+  - [ ] 11.3 Improve dependency detection and messaging
+    - Enhance dependency checking logic with clear impact explanations
+    - Add specific installation hints for missing tools
+    - Improve user feedback when optional dependencies are missing
+    - Create tool availability checking with purpose descriptions
+    - _Requirements: User Experience, Operational Excellence_
+  - [ ] 11.4 Optimize validation performance
+    - Add parallel processing option for immutable field checking
+    - Implement configurable job limits for large repositories
+    - Optimize resource processing loops for better performance
+    - Add progress indicators for long-running validations
+    - _Requirements: Performance, Scalability_
+  - [ ] 11.5 Enhance error message quality and actionability
+    - Replace generic error messages with specific, actionable guidance
+    - Add suggested remediation commands for common failures
+    - Include context about why changes would cause issues
+    - Provide clear next steps for each type of validation failure
+    - _Requirements: User Experience, Troubleshooting_
+  - [ ] 11.6 Strengthen validation script architecture
+    - Implement consistent logging framework across all scripts
+    - Add configuration file support for validation settings
+    - Create modular validation functions for better maintainability
+    - Add comprehensive test coverage for validation logic
+    - _Requirements: Code Quality, Maintainability, Testing_
