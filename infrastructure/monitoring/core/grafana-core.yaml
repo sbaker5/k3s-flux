@@ -85,6 +85,17 @@ spec:
             options:
               path: /var/lib/grafana/dashboards/flux
 
+    # Sidecar configuration to load dashboards from ConfigMaps
+    sidecar:
+      dashboards:
+        enabled: true
+        label: grafana_dashboard
+        labelValue: "1"
+        folder: /tmp/dashboards
+        searchNamespace: monitoring
+        provider:
+          foldersFromFilesStructure: true
+
     # Essential dashboards loaded from ConfigMaps
     dashboards:
       default:
@@ -99,6 +110,9 @@ spec:
         node-exporter:
           gnetId: 1860
           revision: 37
+          datasource: Prometheus-Core
+        gitops-health:
+          file: gitops-health-dashboard.json
           datasource: Prometheus-Core
       longhorn:
         longhorn-dashboard:

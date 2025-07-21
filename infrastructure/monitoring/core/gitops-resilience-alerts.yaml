@@ -1,0 +1,271 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gitops-resilience-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: gitops-resilience-alerts
+    app.kubernetes.io/instance: gitops-resilience-alerts
+    app.kubernetes.io/part-of: flux
+    monitoring.k3s-flux.io/component: gitops-resilience-alerts
+spec:
+  groups:
+    - name: gitops.resilience.patterns
+      interval: 60s
+      rules:
+        # Alert when resources are stuck in terminating state
+        - alert: GitOpsResourceStuckTerminating
+          expr: |
+            increase(kube_pod_deletion_timestamp[10m]) > 0
+            and
+            kube_pod_deletion_timestamp > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: gitops
+            pattern: stuck-termination
+          annotations:
+            summary: "Pod {{ $labels.pod }} stuck in terminating state"
+            description: |
+              Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been
+              stuck in terminating state for over 5 minutes.
+
+              This often indicates:
+              - Finalizers preventing deletion
+              - Volume unmount issues
+              - Application not responding to SIGTERM
+
+              Troubleshooting steps:
+              1. Check pod status: kubectl describe pod {{ $labels.pod }} -n {{ $labels.namespace }}
+              2. Check for finalizers: kubectl get pod {{ $labels.pod }} -n {{ $labels.namespace }} -o yaml | grep finalizers -A 5
+              3. Force delete if safe: kubectl delete pod {{ $labels.pod }} -n {{ $labels.namespace }} --force --grace-period=0
+
+        # Alert when namespace is stuck in terminating state
+        - alert: GitOpsNamespaceStuckTerminating
+          expr: |
+            kube_namespace_status_phase{phase="Terminating"} == 1
+          for: 10m
+          labels:
+            severity: critical
+            component: gitops
+            pattern: stuck-namespace
+          annotations:
+            summary: "Namespace {{ $labels.namespace }} stuck in terminating state"
+            description: |
+              Namespace {{ $labels.namespace }} has been stuck in terminating state for over 10 minutes.
+
+              This is a critical GitOps resilience issue that can block deployments.
+
+              Common causes:
+              - Resources with finalizers not being cleaned up
+              - Custom resources without proper cleanup
+              - API server connectivity issues
+
+              Emergency recovery steps:
+              1. List remaining resources: kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 kubectl get --show-kind --ignore-not-found -n {{ $labels.namespace }}
+              2. Check for finalizers: kubectl get all -n {{ $labels.namespace }} -o yaml | grep finalizers -A 5 -B 5
+              3. Manual cleanup may be required - see troubleshooting guide
+
+        # Alert when PVC is stuck in terminating
+        - alert: GitOpsPVCStuckTerminating
+          expr: |
+            kube_persistentvolumeclaim_deletion_timestamp > 0
+          for: 5m
+          labels:
+            severity: warning
+            component: gitops
+            pattern: stuck-storage
+          annotations:
+            summary: "PVC {{ $labels.persistentvolumeclaim }} stuck in terminating state"
+            description: |
+              PersistentVolumeClaim {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }}
+              has been stuck in terminating state for over 5 minutes.
+
+              This can block GitOps deployments that depend on storage.
+
+              Troubleshooting steps:
+              1. Check PVC status: kubectl describe pvc {{ $labels.persistentvolumeclaim }} -n {{ $labels.namespace }}
+              2. Check associated PV: kubectl get pv -o wide
+              3. Check for pods still using the PVC
+              4. In Longhorn environments, check Longhorn UI for volume status
+
+    - name: gitops.deployment.health
+      interval: 30s
+      rules:
+        # Alert when deployment rollout is stuck
+        - alert: GitOpsDeploymentRolloutStuck
+          expr: |
+            (
+              kube_deployment_status_replicas != kube_deployment_status_ready_replicas
+            ) and (
+              kube_deployment_status_observed_generation == kube_deployment_metadata_generation
+            )
+          for: 10m
+          labels:
+            severity: warning
+            component: gitops
+            pattern: stuck-rollout
+          annotations:
+            summary: "Deployment {{ $labels.deployment }} rollout stuck"
+            description: |
+              Deployment {{ $labels.deployment }} in namespace {{ $labels.namespace }}
+              has been stuck in rollout for over 10 minutes.
+
+              Current state:
+              - Desired replicas: {{ $labels.spec_replicas }}
+              - Ready replicas: {{ $labels.ready_replicas }}
+
+              This often happens after GitOps changes with:
+              - Resource constraints
+              - Image pull issues
+              - Configuration errors
+              - Immutable field changes
+
+              Troubleshooting steps:
+              1. Check deployment status: kubectl describe deployment {{ $labels.deployment }} -n {{ $labels.namespace }}
+              2. Check pod events: kubectl get events -n {{ $labels.namespace }} --sort-by='.lastTimestamp'
+              3. Check recent GitOps changes for breaking modifications
+
+        # Alert when StatefulSet rollout is stuck
+        - alert: GitOpsStatefulSetRolloutStuck
+          expr: |
+            (
+              kube_statefulset_status_replicas != kube_statefulset_status_ready_replicas
+            ) and (
+              kube_statefulset_status_observed_generation == kube_statefulset_metadata_generation
+            )
+          for: 15m
+          labels:
+            severity: critical
+            component: gitops
+            pattern: stuck-stateful-rollout
+          annotations:
+            summary: "StatefulSet {{ $labels.statefulset }} rollout stuck"
+            description: |
+              StatefulSet {{ $labels.statefulset }} in namespace {{ $labels.namespace }}
+              has been stuck in rollout for over 15 minutes.
+
+              Current state:
+              - Desired replicas: {{ $labels.spec_replicas }}
+              - Ready replicas: {{ $labels.ready_replicas }}
+
+              StatefulSet rollout issues are critical as they often involve:
+              - Persistent volume issues
+              - Ordered startup dependencies
+              - Data consistency concerns
+
+              Immediate actions:
+              1. Check StatefulSet status: kubectl describe statefulset {{ $labels.statefulset }} -n {{ $labels.namespace }}
+              2. Check PVC status: kubectl get pvc -n {{ $labels.namespace }}
+              3. Check pod startup order and dependencies
+              4. Review recent changes for volume or storage class modifications
+
+    - name: gitops.resource.conflicts
+      interval: 30s
+      rules:
+        # Alert on resource conflicts
+        - alert: GitOpsResourceConflict
+          expr: |
+            increase(controller_runtime_reconcile_errors_total{error=~".*conflict.*|.*already exists.*"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: warning
+            component: gitops
+            pattern: resource-conflict
+          annotations:
+            summary: "Resource conflict detected in {{ $labels.controller }}"
+            description: |
+              Resource conflicts detected in {{ $labels.controller }}.
+              This indicates multiple controllers or manual changes conflicting with GitOps.
+
+              Common causes:
+              - Manual kubectl apply conflicting with Flux
+              - Multiple Flux sources managing the same resource
+              - Race conditions during reconciliation
+
+              Resolution steps:
+              1. Check controller logs: kubectl logs -n flux-system -l app={{ $labels.controller }} --tail=50
+              2. Identify conflicting resources from error messages
+              3. Ensure single source of truth for each resource
+              4. Use proper GitOps practices (no manual changes)
+
+        # Alert when CRD is missing
+        - alert: GitOpsCRDMissing
+          expr: |
+            increase(controller_runtime_reconcile_errors_total{error=~".*no matches for kind.*|.*CRD.*not found.*"}[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+            component: gitops
+            pattern: missing-crd
+          annotations:
+            summary: "Missing CRD blocking GitOps reconciliation"
+            description: |
+              Custom Resource Definition (CRD) is missing, blocking GitOps reconciliation.
+
+              This is a critical issue that prevents proper resource management.
+
+              Immediate actions:
+              1. Check controller logs: kubectl logs -n flux-system -l app={{ $labels.controller }} --tail=50
+              2. Identify missing CRD from error messages
+              3. Ensure CRD installation order in GitOps pipeline
+              4. Check if CRD installation failed or was removed
+
+    - name: gitops.performance.degradation
+      interval: 60s
+      rules:
+        # Alert when GitOps reconciliation is consistently slow
+        - alert: GitOpsPerformanceDegraded
+          expr: |
+            (
+              histogram_quantile(0.95,
+                rate(gotk_reconcile_duration_seconds_bucket[15m])
+              ) > 60
+            ) and (
+              rate(gotk_reconcile_duration_seconds_count[15m]) > 0.1
+            )
+          for: 10m
+          labels:
+            severity: warning
+            component: gitops
+            pattern: performance-degradation
+          annotations:
+            summary: "GitOps performance degraded - slow reconciliation"
+            description: |
+              GitOps reconciliation performance has degraded significantly.
+              95th percentile reconciliation time is {{ $value }}s over the last 15 minutes.
+
+              This may indicate:
+              - Resource constraints on Flux controllers
+              - Large number of resources being reconciled
+              - Network or storage performance issues
+              - Cluster resource contention
+
+              Performance analysis:
+              1. Check controller resource usage: kubectl top pods -n flux-system
+              2. Check cluster resource availability: kubectl top nodes
+              3. Review recent changes that may have increased load
+              4. Consider controller resource scaling if needed
+
+        # Recording rule for GitOps system health
+        - record: gitops:system_health_score
+          expr: |
+            (
+              (
+                count(up{job=~".*flux.*"} == 1) /
+                count(up{job=~".*flux.*"})
+              ) * 0.4
+            ) + (
+              (
+                count(gotk_reconcile_condition{type="Ready", status="True"}) /
+                count(gotk_reconcile_condition{type="Ready"})
+              ) * 0.6
+            )
+
+        # Recording rule for average reconciliation time
+        - record: gitops:avg_reconciliation_time_seconds
+          expr: |
+            histogram_quantile(0.50,
+              rate(gotk_reconcile_duration_seconds_bucket[5m])
+            )

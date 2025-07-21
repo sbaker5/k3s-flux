@@ -1,0 +1,267 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: flux-reconciliation-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: flux-reconciliation-alerts
+    app.kubernetes.io/instance: flux-reconciliation-alerts
+    app.kubernetes.io/part-of: flux
+    monitoring.k3s-flux.io/component: flux-alerts
+spec:
+  groups:
+    - name: flux.reconciliation.stuck
+      interval: 30s
+      rules:
+        # Alert when Kustomization reconciliation is stuck
+        - alert: FluxKustomizationStuck
+          expr: |
+            (
+              time() - max by (namespace, name, cluster) (
+                gotk_reconcile_condition{
+                  kind="Kustomization",
+                  type="Ready",
+                  status="True"
+                }
+              )
+            ) > 600
+          for: 2m
+          labels:
+            severity: warning
+            component: flux
+            resource_type: kustomization
+          annotations:
+            summary: "Flux Kustomization {{ $labels.name }} reconciliation is stuck"
+            description: |
+              Kustomization {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has not had a successful reconciliation in over 10 minutes.
+              Last successful reconciliation was {{ $value | humanizeDuration }} ago.
+
+              Troubleshooting steps:
+              1. Check Kustomization status: kubectl describe kustomization {{ $labels.name }} -n {{ $labels.namespace }}
+              2. Check controller logs: kubectl logs -n flux-system -l app=kustomize-controller --tail=100
+              3. Force reconciliation: flux reconcile kustomization {{ $labels.name }} -n {{ $labels.namespace }}
+
+        # Alert when HelmRelease reconciliation is stuck
+        - alert: FluxHelmReleaseStuck
+          expr: |
+            (
+              time() - max by (namespace, name, cluster) (
+                gotk_reconcile_condition{
+                  kind="HelmRelease",
+                  type="Ready",
+                  status="True"
+                }
+              )
+            ) > 600
+          for: 2m
+          labels:
+            severity: warning
+            component: flux
+            resource_type: helmrelease
+          annotations:
+            summary: "Flux HelmRelease {{ $labels.name }} reconciliation is stuck"
+            description: |
+              HelmRelease {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has not had a successful reconciliation in over 10 minutes.
+              Last successful reconciliation was {{ $value | humanizeDuration }} ago.
+
+              Troubleshooting steps:
+              1. Check HelmRelease status: kubectl describe helmrelease {{ $labels.name }} -n {{ $labels.namespace }}
+              2. Check controller logs: kubectl logs -n flux-system -l app=helm-controller --tail=100
+              3. Force reconciliation: flux reconcile helmrelease {{ $labels.name }} -n {{ $labels.namespace }}
+
+        # Alert when GitRepository source is stuck
+        - alert: FluxGitRepositoryStuck
+          expr: |
+            (
+              time() - max by (namespace, name, cluster) (
+                gotk_reconcile_condition{
+                  kind="GitRepository",
+                  type="Ready",
+                  status="True"
+                }
+              )
+            ) > 300
+          for: 1m
+          labels:
+            severity: warning
+            component: flux
+            resource_type: gitrepository
+          annotations:
+            summary: "Flux GitRepository {{ $labels.name }} reconciliation is stuck"
+            description: |
+              GitRepository {{ $labels.name }} in namespace {{ $labels.namespace }}
+              has not had a successful reconciliation in over 5 minutes.
+              Last successful reconciliation was {{ $value | humanizeDuration }} ago.
+
+              This may indicate Git connectivity issues or authentication problems.
+
+              Troubleshooting steps:
+              1. Check GitRepository status: kubectl describe gitrepository {{ $labels.name }} -n {{ $labels.namespace }}
+              2. Check controller logs: kubectl logs -n flux-system -l app=source-controller --tail=100
+              3. Verify Git access and credentials
+              4. Force reconciliation: flux reconcile source git {{ $labels.name }} -n {{ $labels.namespace }}
+
+    - name: flux.reconciliation.failures
+      interval: 30s
+      rules:
+        # Alert on high reconciliation error rate
+        - alert: FluxHighReconciliationErrorRate
+          expr: |
+            (
+              rate(controller_runtime_reconcile_errors_total[5m]) /
+              rate(controller_runtime_reconcile_total[5m])
+            ) > 0.1
+          for: 2m
+          labels:
+            severity: warning
+            component: flux
+          annotations:
+            summary: "High Flux reconciliation error rate for {{ $labels.controller }}"
+            description: |
+              Flux controller {{ $labels.controller }} has a reconciliation error rate of {{ $value | humanizePercentage }}.
+              This indicates potential issues with resource reconciliation.
+
+              Current error rate: {{ $value | humanizePercentage }}
+
+              Troubleshooting steps:
+              1. Check controller logs: kubectl logs -n flux-system -l app={{ $labels.controller }} --tail=100
+              2. Check resource events: kubectl get events -n flux-system --sort-by='.lastTimestamp'
+              3. Review recent changes to affected resources
+
+        # Alert when reconciliation duration is consistently high
+        - alert: FluxSlowReconciliation
+          expr: |
+            histogram_quantile(0.95,
+              rate(controller_runtime_reconcile_time_seconds_bucket[10m])
+            ) > 30
+          for: 5m
+          labels:
+            severity: warning
+            component: flux
+          annotations:
+            summary: "Slow Flux reconciliation for {{ $labels.controller }}"
+            description: |
+              95th percentile reconciliation time for {{ $labels.controller }} is {{ $value }}s.
+              This may indicate performance issues or resource contention.
+
+              Troubleshooting steps:
+              1. Check controller resource usage: kubectl top pods -n flux-system
+              2. Check cluster resource availability: kubectl top nodes
+              3. Review controller logs for performance issues
+              4. Consider increasing controller resources if needed
+
+    - name: flux.controller.health
+      interval: 30s
+      rules:
+        # Alert when Flux controllers are not running
+        - alert: FluxControllerDown
+          expr: |
+            up{job=~".*flux.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: flux
+          annotations:
+            summary: "Flux controller {{ $labels.controller }} is down"
+            description: |
+              Flux controller {{ $labels.controller }} is not responding to metrics scraping.
+              This indicates the controller pod may be down or unhealthy.
+
+              Troubleshooting steps:
+              1. Check pod status: kubectl get pods -n flux-system -l app={{ $labels.controller }}
+              2. Check pod logs: kubectl logs -n flux-system -l app={{ $labels.controller }} --tail=100
+              3. Check pod events: kubectl describe pods -n flux-system -l app={{ $labels.controller }}
+              4. Restart if necessary: kubectl rollout restart deployment/{{ $labels.controller }} -n flux-system
+
+        # Alert when controller has no active workers
+        - alert: FluxControllerNoActiveWorkers
+          expr: |
+            controller_runtime_active_workers == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: flux
+          annotations:
+            summary: "Flux controller {{ $labels.controller }} has no active workers"
+            description: |
+              Flux controller {{ $labels.controller }} has no active workers for over 5 minutes.
+              This may indicate a deadlock or configuration issue.
+
+              Troubleshooting steps:
+              1. Check controller logs: kubectl logs -n flux-system -l app={{ $labels.controller }} --tail=100
+              2. Check workqueue metrics for backlog
+              3. Consider restarting the controller: kubectl rollout restart deployment/{{ $labels.controller }} -n flux-system
+
+        # Alert on high workqueue depth (backlog of work)
+        - alert: FluxControllerHighWorkqueueDepth
+          expr: |
+            workqueue_depth > 100
+          for: 5m
+          labels:
+            severity: warning
+            component: flux
+          annotations:
+            summary: "High workqueue depth for Flux controller {{ $labels.controller }}"
+            description: |
+              Flux controller {{ $labels.controller }} has a workqueue depth of {{ $value }}.
+              This indicates a backlog of reconciliation work that may lead to delays.
+
+              Current queue depth: {{ $value }}
+
+              Troubleshooting steps:
+              1. Check controller resource usage and limits
+              2. Review recent changes that may have increased load
+              3. Consider scaling controller resources if consistently high
+              4. Check for stuck reconciliations that may be blocking the queue
+
+    - name: flux.system.health
+      interval: 60s
+      rules:
+        # Alert when multiple Flux resources are in a failed state
+        - alert: FluxSystemDegraded
+          expr: |
+            (
+              count by (cluster) (
+                gotk_reconcile_condition{type="Ready", status="False"}
+              ) /
+              count by (cluster) (
+                gotk_reconcile_condition{type="Ready"}
+              )
+            ) > 0.2
+          for: 5m
+          labels:
+            severity: critical
+            component: flux
+          annotations:
+            summary: "Flux system is degraded - {{ $value | humanizePercentage }} of resources failing"
+            description: |
+              More than 20% of Flux-managed resources are in a failed state.
+              This indicates a systemic issue with the GitOps system.
+
+              Failed resource percentage: {{ $value | humanizePercentage }}
+
+              Immediate actions:
+              1. Check Flux system status: flux check
+              2. Review recent commits for breaking changes
+              3. Check cluster resource availability
+              4. Consider emergency rollback if recent changes caused the issue
+
+              Investigation steps:
+              1. List failed resources: kubectl get kustomizations,helmreleases,gitrepositories -A
+              2. Check system events: kubectl get events -A --sort-by='.lastTimestamp' | tail -20
+              3. Review Flux controller logs: kubectl logs -n flux-system -l 'app in (source-controller,kustomize-controller,helm-controller)' --tail=50
+
+        # Recording rule for overall Flux health score
+        - record: flux:health_score
+          expr: |
+            (
+              count by (cluster) (
+                gotk_reconcile_condition{type="Ready", status="True"}
+              ) /
+              count by (cluster) (
+                gotk_reconcile_condition{type="Ready"}
+              )
+            )

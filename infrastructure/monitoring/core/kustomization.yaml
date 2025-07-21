@@ -10,6 +10,9 @@ resources:
   - grafana-secret.yaml
   - servicemonitor.yaml
   - flux-servicemonitor.yaml
+  - flux-alerts.yaml
+  - gitops-resilience-alerts.yaml
+  - gitops-health-dashboard.yaml
 
 # Common labels for core monitoring
 commonLabels:

@@ -108,7 +108,10 @@ resources:
 ### Core Metrics (Always Available)
 - **Kubernetes cluster state** (kube-state-metrics)
 - **Node metrics** (node-exporter)
-- **Flux controllers** (source, kustomize, helm, notification)
+- **Flux controllers** (comprehensive ServiceMonitor + PodMonitor coverage)
+  - Controllers with services: source-controller, notification-controller
+  - Controllers without services: kustomize-controller, helm-controller
+  - Key metrics: reconciliation timing, errors, active workers, workqueue status
 - **Longhorn storage** (manager endpoints)
 - **Basic infrastructure health**
 
@@ -228,3 +231,58 @@ storageSpec:
 ```
 
 This hybrid architecture ensures monitoring remains available during storage issues while providing optional historical data when needed.
+
+## Flux Monitoring Integration
+
+The monitoring stack includes comprehensive Flux controller monitoring using a hybrid ServiceMonitor + PodMonitor approach to handle Flux's mixed service architecture. For detailed information about Flux metrics, controller architecture, and troubleshooting procedures, see the [Flux Monitoring Guide](../.kiro/steering/flux-monitoring.md).
+
+### GitOps Health Dashboard
+
+A custom **GitOps Health Monitoring** dashboard is included in the core monitoring tier, providing comprehensive visibility into GitOps reconciliation health and performance:
+
+#### Dashboard Features
+
+**Health Overview:**
+- **GitOps Health Score** - Overall system health percentage based on ready resources
+- **Resource Status Distribution** - Pie chart showing True/False/Unknown status breakdown
+- **Resource Status Details** - Table view of all Flux-managed resources with current status
+
+**Performance Monitoring:**
+- **Reconciliation Duration** - 95th and 50th percentile timing trends
+- **Reconciliation Rate** - Success and error rates by controller
+- **Error Rate by Controller** - Percentage of failed reconciliations
+
+**Controller Health:**
+- **Active Workers by Controller** - Worker thread utilization
+- **Workqueue Depth** - Backlog of pending reconciliation work
+- **Time Since Last Successful Reconciliation** - Identifies stuck resources
+
+#### Key Metrics Used
+
+The dashboard leverages these Prometheus metrics:
+- `flux:health_score` - Calculated health percentage (recording rule)
+- `gotk_reconcile_condition` - Resource readiness status
+- `controller_runtime_reconcile_time_seconds_bucket` - Reconciliation timing histograms
+- `controller_runtime_reconcile_total` - Total reconciliation attempts
+- `controller_runtime_reconcile_errors_total` - Failed reconciliation attempts
+- `controller_runtime_active_workers` - Active worker threads
+- `workqueue_depth` - Pending work items
+
+#### Access and Usage
+
+**Dashboard Location:**
+- **Core Grafana**: Available in the default folder as "GitOps Health Monitoring"
+- **Auto-refresh**: 30-second refresh interval for real-time monitoring
+- **Time Range**: Default 1-hour view with customizable time picker
+
+**Troubleshooting Integration:**
+- Panels link to relevant alert rules for automated issue detection
+- Status table provides direct resource identification for manual investigation
+- Performance metrics help identify bottlenecks and capacity issues
+
+**Alert Integration:**
+The dashboard complements the comprehensive alert rules in `flux-alerts.yaml` and `gitops-resilience-alerts.yaml`, providing visual context for:
+- Stuck reconciliation alerts
+- High error rate warnings
+- Controller health issues
+- System degradation notifications
