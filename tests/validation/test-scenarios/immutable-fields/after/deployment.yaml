@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deployment
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: test-app
+      version: v2 # This is an immutable field change - should be detected
+  template:
+    metadata:
+      labels:
+        app: test-app
+        version: v2
+    spec:
+      containers:
+        - name: test-container
+          image: nginx:1.21 # This change is fine
+          ports:
+            - containerPort: 80

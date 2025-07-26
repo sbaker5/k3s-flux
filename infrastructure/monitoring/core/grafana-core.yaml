@@ -10,7 +10,7 @@ spec:
       chart: grafana
       sourceRef:
         kind: HelmRepository
-        name: prometheus-community
+        name: grafana-core
         namespace: monitoring
       interval: 1h
   install:
@@ -26,7 +26,7 @@ spec:
   values:
     # Admin credentials from secret
     admin:
-      existingSecret: monitoring-core-grafana-admin-credentials
+      existingSecret: grafana-admin-credentials
       userKey: admin-user
       passwordKey: admin-password
 

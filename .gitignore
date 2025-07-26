@@ -50,3 +50,17 @@ flux-system-modified.json
 # Temporary files
 *.yaml.bak
 *.yaml.tmp
+# Tailscale secrets (keep auth keys secure)
+**/secret.yaml.local
+**/tailscale-auth-key.txt
+
+# Emergency tool logs and backups
+scripts/emergency-*.log
+scripts/emergency-backups/
+scripts/namespace-backups/
+
+# kubectl proxy logs
+/tmp/kubectl-proxy.log
+
+# Windsurf IDE
+.windsurf/

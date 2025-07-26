@@ -3,6 +3,7 @@ kind: Kustomization
 # CRDs must be installed first
 resources:
   - namespace.yaml
+  - grafana-base-secret.yaml
   - helm-repository.yaml
   - helm-release.yaml
   - servicemonitor.yaml

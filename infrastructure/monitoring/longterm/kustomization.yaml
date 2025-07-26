@@ -3,6 +3,7 @@ kind: Kustomization
 
 # Long-term monitoring - persistent storage (optional)
 resources:
+  - grafana-longterm-secret.yaml
   - prometheus-longterm.yaml
   - grafana-longterm.yaml
 

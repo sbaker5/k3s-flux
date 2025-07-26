@@ -89,6 +89,18 @@ The pre-commit hooks catch issues **before** they reach Flux:
 
 This prevents the stuck reconciliation states that require manual recovery and ensures GitOps resilience.
 
+## Continuous Improvements
+
+The validation infrastructure is continuously being improved as part of the GitOps Resilience Patterns initiative:
+
+- **Documentation accuracy** - Aligning docs with actual implementation behavior
+- **Script robustness** - Enhanced error handling and cleanup procedures
+- **User experience** - Better error messages and dependency detection
+- **Performance** - Parallel processing and optimization for large repositories
+- **Architecture** - Modular design and comprehensive test coverage
+
+See [GitOps Resilience Patterns Implementation](.kiro/specs/gitops-resilience-patterns/tasks.md) for detailed improvement roadmap.
+
 ## Troubleshooting
 
 ### Hook Installation Issues

@@ -202,14 +202,17 @@ flux --version
 # Check Flux components
 flux check --pre
 
-# Verify Flux pods
+# Verify Flux pods (prefer MCP tools if available)
 kubectl get pods -n flux-system
+# OR use MCP: mcp_flux_get_kubernetes_resources --apiVersion=v1 --kind=Pod --namespace=flux-system
 
-# Check reconciliation status
+# Check reconciliation status (prefer MCP tools if available)
 flux get kustomizations -A
+# OR use MCP: mcp_flux_get_flux_instance
 
-# Manually trigger sync if needed
+# Manually trigger sync if needed (prefer MCP tools if available)
 flux reconcile kustomization flux-system -n flux-system
+# OR use MCP: mcp_flux_reconcile_flux_kustomization --name=flux-system --namespace=flux-system
 ```
 
 ## Phase 3: Longhorn Configuration
@@ -656,8 +659,9 @@ kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80
 Verify monitoring is collecting Flux metrics:
 
 ```bash
-# Port forward to Prometheus
+# Port forward to Prometheus (prefer MCP tools if available)
 kubectl port-forward -n monitoring svc/monitoring-core-prometheus-kube-prom-prometheus 9090:9090
+# OR use MCP: mcp_kubernetes_port_forward --resourceType=service --resourceName=monitoring-core-prometheus-kube-prom-prometheus --namespace=monitoring --localPort=9090 --targetPort=9090
 
 # Test Flux metrics collection
 curl -s "http://localhost:9090/api/v1/query?query=controller_runtime_active_workers" | jq '.data.result[] | select(.metric.controller != null)'
@@ -668,8 +672,9 @@ curl -s "http://localhost:9090/api/v1/query?query=controller_runtime_reconcile_t
 
 **Troubleshooting:**
 - If metrics are missing, check both ServiceMonitor and PodMonitor resources
-- Verify controllers are running: `kubectl get pods -n flux-system`
+- Verify controllers are running: `kubectl get pods -n flux-system` (or use MCP tools for enhanced diagnostics)
 - Check metrics endpoints directly: `kubectl exec -n flux-system deployment/source-controller -- wget -qO- http://localhost:8080/metrics`
+- Use MCP Flux tools for comprehensive troubleshooting: `mcp_flux_search_flux_docs` for documentation lookup
 
 **Monitoring Implementation:**
 - **ServiceMonitor**: Monitors controllers with services (source, notification)

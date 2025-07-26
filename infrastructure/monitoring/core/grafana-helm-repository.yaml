@@ -1,0 +1,15 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana-core
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana-helm-repository
+    app.kubernetes.io/component: helm-repository
+    app.kubernetes.io/part-of: monitoring-core
+    monitoring.k3s-flux.io/tier: core
+spec:
+  interval: 1h
+  url: https://grafana.github.io/helm-charts
+  timeout: 60s

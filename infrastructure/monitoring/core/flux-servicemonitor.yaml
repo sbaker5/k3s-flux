@@ -1,45 +1,14 @@
-# NOTE: Flux services don't expose metrics ports, so we rely on PodMonitor instead
-# This ServiceMonitor is kept for documentation but won't discover targets
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: flux-controllers-with-services
-  namespace: monitoring
-  labels:
-    app.kubernetes.io/name: flux-controllers-with-services
-    app.kubernetes.io/instance: flux-controllers-with-services
-    app.kubernetes.io/part-of: flux
-    monitoring.k3s-flux.io/component: flux-metrics
-spec:
-  # NOTE: This ServiceMonitor won't find targets because Flux services
-  # only expose HTTP port (80), not metrics port (8080)
-  # We keep this for completeness but rely on PodMonitor for actual metrics
-  namespaceSelector:
-    matchNames:
-      - flux-system
-  selector:
-    matchLabels:
-      app.kubernetes.io/part-of: flux
-      control-plane: controller
-  endpoints:
-    # This won't work because services don't have http-prom port
-    - port: http-prom
-      path: /metrics
-      interval: 30s
-      scrapeTimeout: 10s
-      honorLabels: true
-      relabelings:
-        - sourceLabels: [__meta_kubernetes_service_label_app_kubernetes_io_component]
-          targetLabel: controller
-        - sourceLabels: [__meta_kubernetes_namespace]
-          targetLabel: namespace
-        - targetLabel: cluster
-          replacement: k3s-flux
-      metricRelabelings:
-        - sourceLabels: [__name__]
-          regex: "flux_.*|gotk_.*|controller_runtime_.*"
-          action: keep
+# Flux Controller Metrics Collection
+#
+# Flux controllers expose metrics on port 8080 (http-prom) but their services
+# only expose HTTP port 80. Therefore, we use PodMonitor to collect metrics
+# directly from controller pods rather than through services.
+#
+# Controllers monitored:
+# - source-controller: Git/OCI repository management
+# - kustomize-controller: Kustomization reconciliation
+# - helm-controller: Helm release management
+# - notification-controller: Event notifications
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -89,8 +58,7 @@ spec:
         - targetLabel: cluster
           replacement: k3s-flux
       metricRelabelings:
-        # Keep Flux and controller runtime metrics
+        # Keep only relevant Flux metrics to reduce cardinality
         - sourceLabels: [__name__]
-          regex: >-
-            flux_.*|gotk_.*|controller_runtime_.*|workqueue_.*|rest_client_.*
+          regex: "flux_.*|gotk_.*|controller_runtime_.*|workqueue_.*|rest_client_.*"
           action: keep

@@ -25,9 +25,11 @@ spec:
       remediateLastFailure: true
     timeout: 10m
   values:
-    # Admin credentials (use secret in production)
-    adminUser: admin
-    adminPassword: admin-longterm
+    # Admin credentials from secret
+    admin:
+      existingSecret: grafana-longterm-credentials
+      userKey: admin-user
+      passwordKey: admin-password
 
     # Persistent storage using Longhorn
     persistence:
@@ -169,7 +171,6 @@ spec:
 
     # Environment variables
     env:
-      GF_SECURITY_ADMIN_PASSWORD: admin-longterm
       GF_USERS_ALLOW_SIGN_UP: false
       GF_INSTALL_PLUGINS: "grafana-piechart-panel,grafana-worldmap-panel"
       GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"

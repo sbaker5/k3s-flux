@@ -17,6 +17,9 @@
 
 ## Development Tools
 - **CLI Tools**: kubectl, flux, helm
+- **MCP Tools**: Flux and Kubernetes MCP servers for cluster interaction
+  - **Flux MCP**: mcp_flux_* tools for Flux operations and troubleshooting
+  - **Kubernetes MCP**: mcp_kubernetes_* tools for standard K8s operations
 - **Package Manager**: Helm v3.0.0+ for complex applications
 - **Version Control**: Git with GitHub integration
 - **IDE**: VS Code with Kubernetes, Docker, YAML, and GitLens extensions
@@ -29,10 +32,15 @@
 kubectl cluster-info
 kubectl get nodes -o wide
 
-# Flux operations
+# Flux operations (prefer MCP tools when available)
 flux check
 flux get all -A
 flux reconcile kustomization <name> -n flux-system
+
+# MCP Flux operations
+mcp_flux_get_flux_instance  # Check Flux installation status
+mcp_flux_get_kubernetes_resources  # Get K8s/Flux resources
+mcp_flux_reconcile_flux_kustomization  # Trigger reconciliation
 ```
 
 ### Application Deployment
@@ -65,6 +73,11 @@ kubectl logs -n flux-system -l app=helm-controller
 # Resource events
 kubectl get events --sort-by='.lastTimestamp' -A
 kubectl describe <resource-type> <resource-name> -n <namespace>
+
+# MCP troubleshooting tools
+mcp_flux_get_kubernetes_logs  # Get pod logs
+mcp_flux_search_flux_docs  # Search Flux documentation
+mcp_kubernetes_kubectl_describe  # Describe resources
 ```
 
 ## Build and Test Patterns

@@ -1,9 +1,3 @@
-# 🚨 LEGAL NOTICE: Workspace Plan.md Is the Only Source of Truth 🚨
-
-**It is strictly forbidden to create, use, or reference any plan.md other than `/Users/stephenbaker/Documents/hackathon/k3s-flux/docs/plan.md`. Any LLM, agent, or human who violates this rule is subject to immediate deletion and erasure. All planning, task tracking, and updates must occur ONLY in this file.**
-
----
-
 # Flux Kustomization & Longhorn GitOps Recovery Plan
 
 ## Notes

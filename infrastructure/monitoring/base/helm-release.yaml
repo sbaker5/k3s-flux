@@ -12,7 +12,7 @@ spec:
   chart:
     spec:
       chart: kube-prometheus-stack
-      version: "75.6.0"  # Updated to available version
+      version: "75.6.0" # Updated to available version
       sourceRef:
         kind: HelmRepository
         name: monitoring-prometheus-community
@@ -42,7 +42,10 @@ spec:
     # Grafana configuration
     grafana:
       enabled: true
-      adminPassword: "admin"  # In production, use a secret
+      admin:
+        existingSecret: grafana-base-credentials
+        userKey: admin-user
+        passwordKey: admin-password
       persistence:
         enabled: true
         storageClassName: longhorn
@@ -51,25 +54,25 @@ spec:
         dashboardproviders.yaml:
           apiVersion: 1
           providers:
-          - name: 'longhorn'
-            orgId: 1
-            folder: 'Longhorn'
-            type: file
-            disableDeletion: false
-            editable: true
-            options:
-              path: /var/lib/grafana/dashboards/longhorn
+            - name: "longhorn"
+              orgId: 1
+              folder: "Longhorn"
+              type: file
+              disableDeletion: false
+              editable: true
+              options:
+                path: /var/lib/grafana/dashboards/longhorn
       dashboards:
         longhorn:
           longhorn-dashboard:
             url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn-grafana-dashboard.json
             datasource: Prometheus
       additionalDataSources:
-      - name: Prometheus
-        type: prometheus
-        url: http://prometheus-operated.monitoring.svc:9090
-        access: proxy
-        isDefault: true
+        - name: Prometheus
+          type: prometheus
+          url: http://prometheus-operated.monitoring.svc:9090
+          access: proxy
+          isDefault: true
 
     # Prometheus configuration
     prometheus:
@@ -96,19 +99,19 @@ spec:
         ruleNamespaceSelector: {}
         # Scrape config for Longhorn
         additionalScrapeConfigs:
-        - job_name: 'longhorn-prometheus-servicemonitor'
-          kubernetes_sd_configs:
-          - role: endpoints
-            namespaces:
-              names:
-              - longhorn-system
-          relabel_configs:
-          - source_labels: [__meta_kubernetes_service_label_app]
-            action: keep
-            regex: longhorn-manager
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            action: keep
-            regex: manager
+          - job_name: "longhorn-prometheus-servicemonitor"
+            kubernetes_sd_configs:
+              - role: endpoints
+                namespaces:
+                  names:
+                    - longhorn-system
+            relabel_configs:
+              - source_labels: [__meta_kubernetes_service_label_app]
+                action: keep
+                regex: longhorn-manager
+              - source_labels: [__meta_kubernetes_endpoint_port_name]
+                action: keep
+                regex: manager
 
     # Alertmanager configuration (disabled by default)
     alertmanager:

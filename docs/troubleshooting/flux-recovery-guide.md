@@ -27,15 +27,39 @@ export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 # 3. Restart Flux components
 kubectl -n flux-system rollout restart deployment
 
-# 4. Check component status
+# 4. Check component status (prefer MCP tools if available)
 flux check
+# OR use MCP: mcp_flux_get_flux_instance
 
-# 5. Force reconciliation
+# 5. Force reconciliation (prefer MCP tools if available)
 flux reconcile source git flux-system
 flux reconcile kustomization flux-system
+# OR use MCP: mcp_flux_reconcile_flux_kustomization
 ```
 
 ## Current State Assessment
+
+### Automated Health Checks
+
+Before manual troubleshooting, use the automated testing tools to quickly assess system health:
+
+```bash
+# Comprehensive post-outage health check
+./tests/validation/post-outage-health-check.sh
+
+# Quick status check for error pattern detection system
+./tests/validation/test-tasks-3.1-3.2.sh
+
+# Detailed runtime validation
+./tests/validation/test-pattern-simulation.sh
+```
+
+These scripts provide immediate insight into:
+- Cluster infrastructure health
+- Flux controller status
+- Storage system health
+- Error pattern detection system status
+- Current issues and recommendations
 
 ### Verify Current Cluster State
 
@@ -43,11 +67,13 @@ flux reconcile kustomization flux-system
 # Check if k3s is running
 sudo systemctl status k3s
 
-# Check Flux pods
+# Check Flux pods (prefer MCP tools if available)
 kubectl get pods -n flux-system
+# OR use MCP: mcp_flux_get_kubernetes_resources --apiVersion=v1 --kind=Pod --namespace=flux-system
 
-# Check Flux custom resources
+# Check Flux custom resources (prefer MCP tools if available)
 kubectl get gitrepositories,kustomizations,helmreleases -A
+# OR use MCP: mcp_flux_get_flux_instance
 
 # Check for recent events
 kubectl get events --sort-by='.lastTimestamp' -A --field-selector=involvedObject.namespace=flux-system
@@ -283,7 +309,7 @@ velero schedule create flux-backup --schedule="@every 24h" --include-namespaces 
 
 ### 5.3 Set Up Monitoring
 
-Create a ServiceMonitor for Flux:
+Create comprehensive monitoring for Flux controllers. Due to Flux's mixed service architecture, use both ServiceMonitor and PodMonitor:
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -304,6 +330,8 @@ spec:
   - port: http-prom
     interval: 15s
 ```
+
+For comprehensive Flux monitoring implementation details, including the hybrid ServiceMonitor + PodMonitor approach, controller architecture, and troubleshooting procedures, see the [Flux Monitoring Guide](../../.kiro/steering/flux-monitoring.md).
 
 ## Recovery Attempt Log
 

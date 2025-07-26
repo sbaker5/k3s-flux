@@ -8,8 +8,8 @@ resources:
   # Infrastructure components
   - nginx-ingress/
   - longhorn/base/
+  - tailscale/base/
   # - cert-manager/
-
 # Note: Removed commonLabels to avoid conflicts with HelmRelease resources
 # HelmReleases manage their own labeling and commonLabels cause immutable field conflicts
 # Individual components can add their own labels as needed

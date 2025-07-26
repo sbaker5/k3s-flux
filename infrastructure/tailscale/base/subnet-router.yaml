@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-subnet-router
+  namespace: tailscale
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailscale-subnet-router
+  template:
+    metadata:
+      labels:
+        app: tailscale-subnet-router
+    spec:
+      serviceAccountName: tailscale
+      initContainers:
+        - name: sysctler
+          image: busybox
+          securityContext:
+            privileged: true
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              sysctl -w net.ipv4.ip_forward=1
+              sysctl -w net.ipv6.conf.all.forwarding=1
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi
+      containers:
+        - name: tailscale
+          imagePullPolicy: Always
+          image: tailscale/tailscale:latest
+          env:
+            # Store the state in a k8s secret
+            - name: TS_KUBE_SECRET
+              value: tailscale-state
+            - name: TS_USERSPACE
+              value: "false"
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: TS_AUTHKEY
+            # Advertise routes for your local network
+            # Adjust these to match your actual network ranges
+            - name: TS_ROUTES
+              value: "10.42.0.0/16,10.43.0.0/16"
+            - name: TS_DEST_IP
+              value: "0.0.0.0"
+            - name: TS_SOCKET
+              value: /tmp/tailscaled.sock
+            - name: TS_STATE_DIR
+              value: /tmp
+            - name: TS_HOSTNAME
+              value: "k3s-cluster"
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          resources:
+            requests:
+              cpu: 10m
+              memory: 10Mi
+            limits:
+              cpu: 100m
+              memory: 100Mi
+          volumeMounts:
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+      volumes:
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailscale
+  namespace: tailscale
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: tailscale
+  name: tailscale
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tailscale-state"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: tailscale
+  name: tailscale
+subjects:
+  - kind: ServiceAccount
+    name: tailscale
+    namespace: tailscale
+roleRef:
+  kind: Role
+  name: tailscale
+  apiGroup: rbac.authorization.k8s.io

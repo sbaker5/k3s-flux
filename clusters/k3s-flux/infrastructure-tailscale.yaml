@@ -1,0 +1,21 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-tailscale
+  namespace: flux-system
+spec:
+  interval: 10m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: "./infrastructure/tailscale/base"
+  prune: true
+  wait: true
+  dependsOn:
+    - name: infrastructure-core
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: tailscale-subnet-router
+      namespace: tailscale

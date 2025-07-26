@@ -6,6 +6,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - prometheus-core.yaml
+  - grafana-helm-repository.yaml
   - grafana-core.yaml
   - grafana-secret.yaml
   - servicemonitor.yaml

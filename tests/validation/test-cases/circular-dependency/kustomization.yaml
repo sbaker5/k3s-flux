@@ -1,0 +1,13 @@
+# Test case for circular dependency detection
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+
+# This creates a circular reference issue
+patchesStrategicMerge:
+  - patch.yaml
+
+commonLabels:
+  app: circular-test
