@@ -50,7 +50,7 @@ spec:
         datasources:
           - name: Prometheus-Core
             type: prometheus
-            url: http://monitoring-core-prometheus-kube-prom-prometheus:9090
+            url: http://monitoring-core-prometheus-prometheus:9090
             access: proxy
             isDefault: true
             editable: true
