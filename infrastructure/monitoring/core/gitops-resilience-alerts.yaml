@@ -269,3 +269,35 @@ spec:
             histogram_quantile(0.50,
               rate(gotk_reconcile_duration_seconds_bucket[5m])
             )
+
+        # Recording rule for stuck resources count
+        - record: gitops:stuck_resources_count
+          expr: |
+            count(
+              (time() - gotk_reconcile_condition{type="Ready", status="False"}) > 300
+            ) or vector(0)
+
+        # Recording rule for reconciliation success rate
+        - record: gitops:reconciliation_success_rate
+          expr: |
+            (
+              rate(controller_runtime_reconcile_total[5m]) - 
+              rate(controller_runtime_reconcile_errors_total[5m])
+            ) / rate(controller_runtime_reconcile_total[5m])
+
+        # Recording rule for controller health status
+        - record: gitops:controller_health_status
+          expr: |
+            up{job=~".*flux.*"}
+
+        # Recording rule for resource readiness by kind
+        - record: gitops:resource_readiness_by_kind
+          expr: |
+            sum by (kind) (gotk_reconcile_condition{type="Ready", status="True"}) /
+            sum by (kind) (gotk_reconcile_condition{type="Ready"})
+
+        # Recording rule for API request error rate
+        - record: gitops:api_request_error_rate
+          expr: |
+            rate(rest_client_requests_total{job=~".*flux.*", code=~"4..|5.."}[5m]) /
+            rate(rest_client_requests_total{job=~".*flux.*"}[5m])
