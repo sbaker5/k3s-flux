@@ -1,60 +1,33 @@
 # K3s Homelab Implementation Plan
 
 ## Table of Contents
-1. [Current Issues](#current-issues)
-2. [Immediate Actions](#immediate-actions)
-3. [Network Troubleshooting](#network-troubleshooting)
-4. [GitOps Resilience Patterns](#gitops-resilience-patterns)
-5. [GitOps Implementation](#gitops-implementation)
-6. [Security Enhancements](#security-enhancements)
-7. [Monitoring & Observability](#monitoring--observability)
-8. [Backup & Recovery](#backup--recovery)
-9. [Documentation](#documentation)
-10. [Long-term Improvements](#long-term-improvements)
+1. [Current Status](#current-status)
+2. [GitOps Resilience Patterns](#gitops-resilience-patterns)
+3. [Monitoring & Observability](#monitoring--observability)
+4. [Security Enhancements](#security-enhancements)
+5. [Backup & Recovery](#backup--recovery)
+6. [Documentation](#documentation)
+7. [Long-term Improvements](#long-term-improvements)
 
-## Current Issues
+> **📋 For system architecture details, see [Architecture Overview](architecture-overview.md)**
 
-### 1. Longhorn UI Access
-- **Issue**: Cannot access Longhorn UI via `http://192.168.86.71:30080/longhorn`
-- **Workaround**: `kubectl port-forward -n longhorn-system svc/longhorn-ui 8080:80`
-- **Root Causes**:
-  - Network connectivity issues between kube-proxy and service endpoints
-  - Potential CNI (Flannel) configuration issues
-  - Service/Endpoint synchronization problems
+## Current Status
 
-### 2. Network Configuration
-- NGINX Ingress Controller running on ports 30080/30443
-- Longhorn UI service exposed on port 31863 (inaccessible)
-- Documented Ports:
-  - 30080: HTTP traffic
-  - 30443: HTTPS traffic
-  - 30090: Cloud-init server
+### ✅ Completed Infrastructure
+- **k3s Cluster**: Operational with single node (k3s1), ready for multi-node expansion
+- **Flux CD**: GitOps system fully deployed and operational
+- **Longhorn Storage**: Distributed storage system operational, multi-node ready
+- **NGINX Ingress**: Ingress controller running on NodePorts 30080/30443
+- **Monitoring System**: Bulletproof monitoring with ephemeral storage
+- **Remote Access**: Tailscale-based secure remote access configured
+- **Multi-Node Infrastructure**: k3s2 node configuration prepared and ready for activation
 
-## Immediate Actions
-
-### 1. Port-Forwarding Workaround
-```bash
-# Access Longhorn UI via port-forwarding
-kubectl port-forward -n longhorn-system svc/longhorn-ui 8080:80
-```
-Then access at: http://localhost:8080
-
-### 2. Verify NGINX Ingress Accessibility
-```bash
-# Check NGINX Ingress service
-kubectl get svc -n ingress-nginx
-
-# Test direct access to NGINX
-telnet 192.168.86.71 30080
-curl -I http://192.168.86.71:30080
-```
-
-### 3. Check Host Firewall
-```bash
-# On k3s1 node
-sudo ufw status
-sudo iptables -L -n -v | grep 30080
-```
+### 🎯 Current Focus Areas
+- **Multi-Node Expansion**: k3s2 worker node onboarding ready for deployment (GitOps configuration complete, enhanced cloud-init ready)
+- **GitOps Resilience**: Automated error detection and recovery patterns
+- **Monitoring Optimization**: Enhanced Flux metrics collection and alerting
+- **Documentation Consolidation**: Streamlining and updating documentation
+- **Operational Excellence**: Improving maintenance procedures and tooling
 
 ## Network Troubleshooting
 
@@ -89,25 +62,21 @@ kubectl exec -it test-pod1 -- ping test-pod2
 - **Immutable field conflict detection** - Advanced tool detecting breaking changes across 10+ resource types
 - **Emergency recovery procedures** - Comprehensive troubleshooting guide with manual recovery procedures
 - **Validation scripts** - Automated tools for preventing deployment failures
-
-**✅ Completed Infrastructure:**
 - **Reconciliation health monitoring** - Complete hybrid monitoring architecture with bulletproof core tier
 - **GitOps health monitoring dashboard** - Grafana dashboard for Flux reconciliation visibility and performance tracking
 - **Alert rules for stuck reconciliations** - Comprehensive PrometheusRule resources for proactive detection
-- **Monitoring cleanup procedures** - Automated cleanup of stuck monitoring resources and PVCs
-- **KubeVirt preparation** - Storage tier design for future VM workloads completed
 - **Error pattern detection system** - Advanced controller with 20+ error patterns and comprehensive testing suite
-
-**✅ Recently Completed:**
-- **Automated recovery system** - Complete error pattern detection and resource recreation automation with comprehensive testing suite
+- **Automated recovery system** - Complete error pattern detection and resource recreation automation
 
 **🚧 In Progress:**
+- **Multi-node cluster expansion** - k3s2 worker node ready for deployment (GitOps configuration complete, enhanced cloud-init with comprehensive error handling and health monitoring ready)
 - **Resource lifecycle management** - Blue-green deployment patterns for immutable resources
-- **Code quality and documentation improvements** - Enhanced validation scripts, documentation accuracy, and operational excellence
+- **Code quality and documentation improvements** - ✅ **Validation scripts completed** - Enhanced pre-onboarding validation, documentation accuracy, and operational excellence
+- **Documentation consolidation** - Streamlining and updating documentation structure
 
 **📋 Planned:**
-- **Recovery automation execution** - Complete pattern-based recovery action implementation
 - **Advanced deployment patterns** - Canary deployments and progressive delivery
+- **Multi-cluster resilience** - Extending patterns to multi-cluster environments
 
 ### Available Tools
 
@@ -194,6 +163,41 @@ kubectl logs -n flux-recovery deployment/error-pattern-detector -f
 - Blue-green deployment strategies for immutable resources
 - Atomic resource replacement tooling
 - Dependency-aware update ordering
+
+## Multi-Node Cluster Expansion
+
+### Current Status: Ready for k3s2 Onboarding
+
+**✅ Prepared Infrastructure:**
+- **Node Configuration**: k3s2 node configuration files ready and activated in `infrastructure/k3s2-node-config/`
+- **Cloud-Init Setup**: Enhanced automated onboarding configuration at `infrastructure/cloud-init/user-data.k3s2` with comprehensive error handling, retry mechanisms, and health monitoring
+- **Storage Integration**: Disk discovery DaemonSet ready for multi-node storage
+- **GitOps Management**: Flux Kustomizations activated for k3s2 (storage kustomization includes k3s2-node-config)
+- **Validation Tools**: ✅ **Completed** - Comprehensive pre-onboarding validation scripts including cluster readiness, network connectivity, storage health, and monitoring system validation
+- **Health Monitoring**: Real-time onboarding status monitoring with HTTP health check endpoint on port 8080
+
+**🎯 Onboarding Process:**
+1. **Node Preparation**: Boot k3s2 with cloud-init or manual setup
+2. **Cluster Join**: Automated k3s agent installation and cluster join
+3. **GitOps Activation**: Uncomment k3s2-node-config in storage kustomization
+4. **Storage Integration**: Automatic Longhorn disk discovery and configuration
+5. **Validation**: Run comprehensive validation suite
+
+**📋 Validation Commands:**
+```bash
+# Test cluster readiness for k3s2 onboarding
+./tests/validation/test-k3s2-node-onboarding.sh
+
+# After k3s2 joins, validate full integration
+./tests/validation/test-k3s2-node-onboarding.sh
+
+# Comprehensive multi-node validation
+./tests/validation/post-outage-health-check.sh
+```
+
+**📚 Documentation:**
+- [Multi-Node Cluster Expansion Guide](setup/multi-node-cluster-expansion.md) - Complete onboarding procedures
+- [k3s2 Node Onboarding Spec](../.kiro/specs/k3s1-node-onboarding/) - Detailed requirements and implementation plan
 
 ### Integration with CI/CD
 
@@ -292,19 +296,19 @@ Core Tier (Always Available)     │  Long-term Tier (Optional)
 │  └─ emptyDir storage            │  │  └─ Longhorn storage
 ├─ Grafana Core (ephemeral)       │  ├─ Grafana LT (persistent)
 │  └─ Essential dashboards        │  │  └─ Full feature dashboards
-└─ Node/KSM exporters             │  └─ Alertmanager
+└─ Optimized Flux PodMonitor      │  └─ Alertmanager
 ```
 
 **Deployment Steps**:
 ```bash
-# 1. Clean up any stuck monitoring resources
+# 1. Clean up any stuck monitoring resources (comprehensive automation)
 ./scripts/cleanup-stuck-monitoring.sh
 
 # 2. Deploy core monitoring (bulletproof)
 flux reconcile kustomization monitoring -n flux-system
 
-# 3. Verify core monitoring health
-kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core
+# 3. Verify core monitoring health (automated assessment)
+./scripts/monitoring-health-assessment.sh
 
 # 4. (Optional) Enable long-term monitoring when Longhorn is stable
 # Edit infrastructure/monitoring/kustomization.yaml
@@ -314,19 +318,33 @@ kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core
 **Benefits**:
 - ✅ **Bulletproof**: Core monitoring survives storage failures
 - ✅ **Fast recovery**: Ephemeral storage enables quick restarts
-- ✅ **Data continuity**: remote_write from core to long-term tier
+- ✅ **Automated cleanup**: Comprehensive monitoring cleanup with interactive confirmation
+- ✅ **Optimized metrics**: PodMonitor with advanced filtering for all Flux controllers
+- ✅ **Remote access**: Validated Tailscale remote access procedures
 - ✅ **Alert rules**: Comprehensive PrometheusRule resources for stuck reconciliation detection
 - ✅ **KubeVirt ready**: Storage architecture prepared for VM workloads
 
-### 2. Legacy Monitoring Migration
-```bash
-# Remove old monitoring stack if present
-kubectl delete helmrelease -n monitoring --all
-kubectl delete pvc -n monitoring --all
+### 2. Monitoring System Maintenance (✅ Completed)
 
-# Deploy new hybrid architecture
-flux reconcile kustomization monitoring -n flux-system
+**Automated Cleanup Tools**:
+```bash
+# Comprehensive monitoring cleanup with multiple modes
+./scripts/cleanup-stuck-monitoring.sh                    # Interactive cleanup
+./scripts/cleanup-stuck-monitoring.sh assess             # Assessment only
+./scripts/cleanup-stuck-monitoring.sh detect             # Detect stuck resources
+./scripts/cleanup-stuck-monitoring.sh namespace          # Clean namespace only
+./scripts/cleanup-stuck-monitoring.sh comprehensive      # Full cleanup
+
+# Health assessment with detailed reporting
+./scripts/monitoring-health-assessment.sh
 ```
+
+**Features**:
+- ✅ **Interactive confirmation** before cleanup operations
+- ✅ **Stuck resource detection** with automatic identification
+- ✅ **HelmRelease suspension/resumption** for safe cleanup
+- ✅ **Comprehensive logging** with timestamped operations
+- ✅ **Health assessment** with color-coded status indicators
 
 ### 3. Alert Rules for GitOps Resilience (Completed)
 

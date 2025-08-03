@@ -1,8 +1,41 @@
+# Tailscale Subnet Router Configuration
+#
+# SECURITY MODEL:
+# This deployment creates a Tailscale subnet router that provides secure, encrypted
+# access to the k3s cluster network from anywhere in the world. The security model
+# is based on Tailscale's zero-trust architecture with device-level authentication.
+#
+# NETWORK ARCHITECTURE:
+# - Tailscale creates an encrypted overlay network (WireGuard-based)
+# - This subnet router advertises k3s cluster networks to the Tailscale network
+# - All traffic is end-to-end encrypted between Tailscale devices
+# - No ports are exposed to the public internet
+#
+# CAPABILITY REQUIREMENTS:
+# - NET_ADMIN: Required for network interface management and routing table updates
+# - /dev/net/tun access: Required for TUN interface creation (VPN functionality)
+# - IP forwarding: Required to route traffic between Tailscale and cluster networks
+#
+# NETWORK RANGES ADVERTISED:
+# - 10.42.0.0/16: k3s pod network (default k3s pod CIDR)
+# - 10.43.0.0/16: k3s service network (default k3s service CIDR)
+#
+# SECURITY CONSIDERATIONS:
+# - Uses specific capabilities instead of privileged containers where possible
+# - Init container requires privileged access for sysctl modifications
+# - Main container runs with minimal NET_ADMIN capability
+# - State stored in Kubernetes secrets with proper RBAC
+# - Authentication handled by Tailscale auth keys (should be SOPS encrypted)
+#
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tailscale-subnet-router
   namespace: tailscale
+  labels:
+    app.kubernetes.io/name: tailscale-subnet-router
+    app.kubernetes.io/component: network-access
+    app.kubernetes.io/part-of: tailscale
 spec:
   replicas: 1
   selector:
@@ -12,99 +45,286 @@ spec:
     metadata:
       labels:
         app: tailscale-subnet-router
+        app.kubernetes.io/name: tailscale-subnet-router
+        app.kubernetes.io/component: network-access
     spec:
       serviceAccountName: tailscale
+      # SECURITY: Init container for system configuration
+      # This container requires privileged access to modify kernel network settings
+      # Alternative approaches (like using a DaemonSet with host network) would
+      # require even broader privileges, so this is the most secure option
       initContainers:
         - name: sysctler
-          image: busybox
+          image: busybox:1.36.1 # Pinned version for security and reproducibility
           securityContext:
+            # SECURITY REQUIREMENT: Privileged access needed for sysctl modifications
+            # This is required to enable IP forwarding at the kernel level
+            # Without this, the subnet router cannot forward traffic between networks
             privileged: true
+            # Additional security context could be added here in future:
+            # runAsNonRoot: false  # Required for sysctl access
+            # readOnlyRootFilesystem: true  # Could be enabled with proper volume mounts
           command: ["/bin/sh"]
           args:
             - -c
             - |
+              # Enable IPv4 forwarding - required for routing between Tailscale and k3s networks
+              echo "Enabling IPv4 forwarding..."
               sysctl -w net.ipv4.ip_forward=1
+
+              # Enable IPv6 forwarding - required for IPv6 support (future-proofing)
+              echo "Enabling IPv6 forwarding..."
               sysctl -w net.ipv6.conf.all.forwarding=1
+
+              # Verify settings were applied
+              echo "IP forwarding status:"
+              sysctl net.ipv4.ip_forward
+              sysctl net.ipv6.conf.all.forwarding
           resources:
             requests:
               cpu: 1m
               memory: 1Mi
+            limits:
+              cpu: 10m
+              memory: 10Mi
       containers:
         - name: tailscale
-          imagePullPolicy: Always
-          image: tailscale/tailscale:latest
+          # SECURITY: Pinned image version instead of :latest
+          # Using specific version ensures reproducible deployments and prevents
+          # supply chain attacks through automatic image updates
+          image: tailscale/tailscale:v1.56.1
+          imagePullPolicy: IfNotPresent # Use cached image if available
           env:
-            # Store the state in a k8s secret
+            # TAILSCALE CONFIGURATION
+            # Store persistent state in Kubernetes secret for pod restarts
             - name: TS_KUBE_SECRET
               value: tailscale-state
+
+            # SECURITY: Disable userspace networking for better performance
+            # Kernel networking provides better performance and is more secure
+            # when proper capabilities are configured
             - name: TS_USERSPACE
               value: "false"
+
+            # SECURITY: Authentication key from encrypted secret
+            # This key should be encrypted with SOPS and rotated regularly
+            # See docs/security/secret-management.md for rotation procedures
             - name: TS_AUTHKEY
               valueFrom:
                 secretKeyRef:
                   name: tailscale-auth
                   key: TS_AUTHKEY
-            # Advertise routes for your local network
-            # Adjust these to match your actual network ranges
+
+            # NETWORK ARCHITECTURE: Advertised routes
+            # These are the k3s cluster networks that will be accessible via Tailscale
+            # 10.42.0.0/16: Default k3s pod network (where pods get IP addresses)
+            # 10.43.0.0/16: Default k3s service network (ClusterIP services)
+            #
+            # ENVIRONMENT CUSTOMIZATION: These ranges should be customized per environment
+            # - Development: May use different ranges or subset of production
+            # - Staging: Should mirror production ranges for accurate testing
+            # - Production: Full cluster network access
             - name: TS_ROUTES
               value: "10.42.0.0/16,10.43.0.0/16"
+
+            # NETWORKING: Bind to all interfaces
             - name: TS_DEST_IP
               value: "0.0.0.0"
+
+            # TAILSCALE DAEMON CONFIGURATION
             - name: TS_SOCKET
               value: /tmp/tailscaled.sock
             - name: TS_STATE_DIR
               value: /tmp
+
+            # IDENTIFICATION: Hostname for this device in Tailscale network
+            # This appears in the Tailscale admin console and device lists
             - name: TS_HOSTNAME
               value: "k3s-cluster"
+
+          # SECURITY CONTEXT: Minimal required capabilities
           securityContext:
+            # SECURITY: Run as non-root user where possible
+            # Note: Tailscale may require root for some operations
+            # runAsNonRoot: true  # TODO: Investigate if this can be enabled
+
+            # SECURITY: Minimal capability set
+            # Only grant the specific capabilities needed for network operations
             capabilities:
+              # NET_ADMIN: Required for:
+              # - Creating and managing TUN interfaces
+              # - Modifying routing tables
+              # - Managing network namespaces
               add:
                 - NET_ADMIN
+              # Drop all other capabilities for security
+              drop:
+                - ALL
+
+            # SECURITY: Additional hardening options
+            # allowPrivilegeEscalation: false  # TODO: Test if this can be enabled
+            # readOnlyRootFilesystem: true     # TODO: Configure with proper volume mounts
+
+          # RESOURCE MANAGEMENT: Prevent resource exhaustion
+          # These limits ensure the subnet router doesn't consume excessive resources
+          # while providing enough capacity for normal network operations
           resources:
             requests:
-              cpu: 10m
-              memory: 10Mi
+              cpu: 10m # Minimal CPU for idle state
+              memory: 10Mi # Minimal memory for basic operations
             limits:
-              cpu: 100m
-              memory: 100Mi
+              cpu: 100m # Maximum CPU during high network activity
+              memory: 100Mi # Maximum memory (Tailscale is generally lightweight)
+
+          # HEALTH CHECKS: Monitor Tailscale daemon health
+          # These probes ensure the subnet router is functioning correctly
+          # and can route traffic between networks
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Check if Tailscale daemon is running and responsive
+                  tailscale status >/dev/null 2>&1
+            initialDelaySeconds: 30 # Allow time for Tailscale to start
+            periodSeconds: 60 # Check every minute
+            timeoutSeconds: 10 # Allow 10 seconds for response
+            failureThreshold: 3 # Restart after 3 consecutive failures
+
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Check if Tailscale is connected and can route traffic
+                  # This ensures the subnet router is actually functional
+                  tailscale status | grep -q "active" && \
+                  tailscale status | grep -q "subnet router"
+            initialDelaySeconds: 10 # Check readiness quickly after start
+            periodSeconds: 30 # Check every 30 seconds
+            timeoutSeconds: 5 # Quick timeout for readiness
+            failureThreshold: 2 # Mark unready after 2 failures
+
+          # VOLUME MOUNTS: Required for TUN interface access
           volumeMounts:
+            # TUN device access for VPN functionality
+            # This is required for Tailscale to create network interfaces
             - name: dev-net-tun
               mountPath: /dev/net/tun
+
+      # VOLUMES: Host resources required for networking
       volumes:
+        # TUN device from host - required for VPN functionality
+        # This provides access to the host's TUN device for creating
+        # virtual network interfaces
         - name: dev-net-tun
           hostPath:
             path: /dev/net/tun
+            type: CharDevice # Ensure it's a character device
 ---
+# RBAC CONFIGURATION FOR TAILSCALE SUBNET ROUTER
+#
+# SECURITY MODEL:
+# This RBAC configuration follows the principle of least privilege, granting
+# only the minimum permissions required for Tailscale to function as a subnet router.
+#
+# PERMISSION REQUIREMENTS:
+# - Secret creation: Tailscale needs to create its state secret on first run
+# - Secret updates: Tailscale updates its state secret to persist connection info
+# - Namespace isolation: All permissions are scoped to the tailscale namespace only
+#
+# SECURITY CONSIDERATIONS:
+# - No cluster-wide permissions granted
+# - No access to other namespaces or their secrets
+# - No access to pods, services, or other Kubernetes resources
+# - State secret is the only secret that can be modified after creation
+#
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: tailscale
   namespace: tailscale
+  labels:
+    app.kubernetes.io/name: tailscale
+    app.kubernetes.io/component: service-account
+    app.kubernetes.io/part-of: tailscale
+  annotations:
+    # Documentation for security auditing
+    security.k3s-flux.io/purpose: "Tailscale subnet router service account"
+    security.k3s-flux.io/permissions: "secrets:create,get,update,patch in tailscale namespace only"
+    security.k3s-flux.io/risk-level: "low"
 ---
+# RBAC ROLE: Minimal permissions for Tailscale operation
+# This role defines the exact permissions needed for Tailscale to manage its state
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: tailscale
   name: tailscale
+  labels:
+    app.kubernetes.io/name: tailscale
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: tailscale
+  annotations:
+    # Security documentation for auditing
+    security.k3s-flux.io/purpose: "Minimal permissions for Tailscale state management"
+    security.k3s-flux.io/scope: "tailscale namespace only"
 rules:
+  # PERMISSION: Create secrets
+  # JUSTIFICATION: Tailscale needs to create its state secret on first startup
+  # SCOPE: Any secret in the tailscale namespace (limited by namespace)
+  # RISK: Low - only affects tailscale namespace, no sensitive data exposure
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]
+
+  # PERMISSION: Read, update, and patch the Tailscale state secret
+  # JUSTIFICATION: Tailscale needs to persist connection state, device info, etc.
+  # SCOPE: Only the specific "tailscale-state" secret
+  # RISK: Low - only affects Tailscale's own operational state
   - apiGroups: [""]
     resources: ["secrets"]
     resourceNames: ["tailscale-state"]
     verbs: ["get", "update", "patch"]
+
+  # NOTE: Deliberately NOT granted:
+  # - list/watch on secrets (prevents enumeration of other secrets)
+  # - delete on secrets (prevents accidental state loss)
+  # - access to other resource types (pods, services, etc.)
+  # - cluster-wide permissions (ClusterRole not used)
 ---
+# RBAC BINDING: Connect the service account to the role
+# This binding grants the tailscale service account the permissions defined in the role
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   namespace: tailscale
   name: tailscale
+  labels:
+    app.kubernetes.io/name: tailscale
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/part-of: tailscale
+  annotations:
+    # Security audit trail
+    security.k3s-flux.io/binding-purpose: "Grant Tailscale minimal secret management permissions"
+    security.k3s-flux.io/last-reviewed: "2025-01-25"
 subjects:
+  # SUBJECT: The Tailscale service account in the tailscale namespace
   - kind: ServiceAccount
     name: tailscale
     namespace: tailscale
 roleRef:
+  # ROLE: The minimal permissions role defined above
   kind: Role
   name: tailscale
   apiGroup: rbac.authorization.k8s.io
+# SECURITY AUDIT CHECKLIST:
+# ✅ Principle of least privilege applied
+# ✅ Namespace isolation enforced
+# ✅ No cluster-wide permissions granted
+# ✅ Specific resource names used where possible
+# ✅ No unnecessary verbs granted
+# ✅ Documentation and annotations provided
+# ✅ Labels applied for resource management

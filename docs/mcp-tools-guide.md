@@ -189,6 +189,40 @@ MCP tools can be configured through the `.kiro/settings/mcp.json` file:
 }
 ```
 
+## Monitoring System Integration
+
+### Monitoring with MCP Tools
+
+MCP tools provide enhanced monitoring capabilities for the bulletproof monitoring architecture:
+
+**Monitoring Health Checks:**
+```bash
+# Check monitoring system status
+mcp_flux_get_kubernetes_resources --apiVersion=v1 --kind=Pod --namespace=monitoring
+
+# Get monitoring metrics
+mcp_flux_get_kubernetes_metrics --pod_namespace=monitoring
+
+# Check Flux metrics collection
+mcp_flux_get_kubernetes_resources --apiVersion=monitoring.coreos.com/v1 --kind=ServiceMonitor --namespace=monitoring
+mcp_flux_get_kubernetes_resources --apiVersion=monitoring.coreos.com/v1 --kind=PodMonitor --namespace=monitoring
+```
+
+**Remote Access Integration:**
+When MCP tools are unavailable, use Tailscale remote access:
+```bash
+# SSH to cluster via Tailscale
+ssh k3s1-tailscale
+
+# Use emergency CLI for monitoring
+./scripts/emergency-cli.sh status
+./scripts/monitoring-health-assessment.sh
+
+# Manual port forwarding for remote monitoring access
+kubectl port-forward -n monitoring svc/monitoring-core-prometheus-kube-prom-prometheus 9090:9090 --address=0.0.0.0 &
+kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address=0.0.0.0 &
+```
+
 ## Best Practices
 
 ### When to Use MCP Tools
@@ -196,17 +230,27 @@ MCP tools can be configured through the `.kiro/settings/mcp.json` file:
 - **Complex Operations**: Use MCP tools for multi-step operations
 - **Documentation Lookup**: Use MCP search for quick reference
 - **Resource Management**: Use MCP tools for enhanced filtering and selection
+- **Monitoring Operations**: Use MCP tools for monitoring system health checks
 
 ### When to Use Traditional CLI
 - **Simple Operations**: Basic kubectl commands for quick checks
 - **Scripting**: Traditional CLI tools for automation scripts
 - **CI/CD Pipelines**: Standard tools for pipeline integration
+- **Emergency Access**: Use traditional CLI via Tailscale when MCP tools are unavailable
+
+### When to Use Remote Access
+- **MCP Tool Failures**: Use Tailscale remote access when MCP tools are unavailable
+- **Emergency Situations**: Direct SSH access for critical troubleshooting
+- **Monitoring Access**: Remote access to Prometheus and Grafana dashboards
+- **Offline Troubleshooting**: When working remotely without MCP connectivity
 
 ### Integration Strategy
 - Use MCP tools interactively for troubleshooting and exploration
 - Use traditional CLI tools for scripting and automation
-- Combine both approaches based on the specific use case
+- Use Tailscale remote access as backup when MCP tools fail
+- Combine all approaches based on the specific use case and availability
 - Document MCP tool usage in runbooks and procedures
+- Maintain remote access procedures for emergency situations
 
 ## Troubleshooting MCP Tools
 

@@ -16,6 +16,12 @@ This directory contains comprehensive testing tools for validating the GitOps re
 ./tests/validation/test-tasks-3.1-3.2.sh
 ```
 
+### Verify k3s2 Node Onboarding
+```bash
+# Test k3s2 node readiness and integration
+./tests/validation/test-k3s2-node-onboarding.sh
+```
+
 ### Full System Validation
 ```bash
 # Comprehensive testing with simulation
@@ -50,6 +56,11 @@ This directory contains comprehensive testing tools for validating the GitOps re
 - **File**: `validation/post-outage-health-check.sh`
 - **Purpose**: Comprehensive health check after system disruptions
 - **When to use**: After power outages, cluster restarts, major incidents
+
+### 6. Multi-Node Validation
+- **File**: `validation/test-k3s2-node-onboarding.sh`
+- **Purpose**: Validates k3s2 worker node integration and multi-node functionality
+- **When to use**: Before/after k3s2 onboarding, multi-node cluster validation
 
 ## Test Results Interpretation
 
@@ -103,6 +114,9 @@ This directory contains comprehensive testing tools for validating the GitOps re
 ```bash
 # Quick daily check
 ./tests/validation/test-tasks-3.1-3.2.sh
+
+# Multi-node cluster validation
+./tests/validation/test-k3s2-node-onboarding.sh
 
 # Weekly comprehensive check
 ./tests/validation/test-pattern-simulation.sh

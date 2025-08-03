@@ -75,6 +75,7 @@
   - [ ] 4.3 Build system state backup and restore capabilities
     - Implement automated backup of Flux configurations and cluster state
     - Create restore procedures for critical system components
+    - Include Longhorn volume backup integration (see docs/longhorn-monitoring-requirements.md)
     - _Requirements: 7.3, 7.4_
   - [x] 4.4 Write runbooks for escalation scenarios
     - Escalation procedures documented in existing recovery guide
@@ -153,14 +154,16 @@
     - Build self-healing mechanisms for common state issues
     - _Requirements: 6.1, 6.3_
 
-- [ ] 9. Build comprehensive testing and validation framework
+- [ ] 9. Build comprehensive testing and validation framework (UNIFIED FRAMEWORK)
   - [ ] 9.1 Create chaos engineering test suite
     - Build test suite to validate GitOps resilience under failure conditions
     - Implement automated chaos testing scenarios
+    - Include storage failure scenarios (Longhorn integration)
     - _Requirements: 3.4, 7.4_
   - [ ] 9.2 Implement automated recovery testing
     - Create automated tests for all recovery procedures
     - Build validation of recovery effectiveness and timing
+    - Include monitoring system recovery testing (from Monitoring spec Task 8)
     - _Requirements: 3.4, 7.2_
   - [ ] 9.3 Build end-to-end reconciliation tests
     - Create integration tests for complete reconciliation scenarios
@@ -170,9 +173,10 @@
     - Build performance tests for system behavior under various failure modes
     - Create load testing for recovery procedures
     - _Requirements: 3.4, 4.4_
+  - _Note: This is the UNIFIED testing framework that other specs integrate with_
 
 - [x] 10. Create operational dashboards and documentation
-  - [ ] 10.1 Build comprehensive GitOps health monitoring dashboard
+  - [x] 10.1 Build comprehensive GitOps health monitoring dashboard
     - Extend existing Grafana setup with GitOps-specific dashboards
     - Create visualizations for reconciliation health and performance
     - _Requirements: 4.1, 4.4_
@@ -192,6 +196,26 @@
     - _Requirements: 4.4, 7.4_
 
 - [ ] 11. Code Quality and Documentation Improvements
+  - [ ] 11.0 Improve archive documentation structure and consistency **[NEW - DOCUMENTATION QUALITY ISSUES]**
+    - **INCONSISTENT FORMAT**: Standardize archive entry format across all entries in docs/archive/README.md (lines 19-32 use different structure than existing entries)
+    - **CONTENT REDUNDANCY**: Consolidate repetitive "Development artifact" reasoning into more specific categories to reduce duplication
+    - **MISSING METADATA**: Add structured metadata fields (creation date, file size, dependencies, retention period) for better archive management
+    - **VAGUE POLICY**: Create specific archival criteria with measurable thresholds, timeframes, and clear distinction between temporary vs. permanent archival
+    - **MAINTENANCE BURDEN**: Current inconsistent format makes it harder to programmatically process or validate archive entries
+    - **USER EXPERIENCE**: Inconsistent documentation structure confuses users trying to understand archive organization
+    - _Requirements: Documentation Quality, Consistency, Maintainability, User Experience_
+  - [ ] 11.1 Improve documentation reorganization plan quality **[NEW - DOCUMENTATION ARCHITECTURE ISSUES]**
+    - **STRUCTURE DESIGN**: Simplify over-engineered 6-folder structure to 3-4 folders initially for homelab context
+    - **NAMING CONSISTENCY**: Standardize folder naming convention (all plural vs singular) - currently mixed
+    - **CONTENT BOUNDARIES**: Define clearer scope boundaries between setup/, user-guides/, and operations/ folders
+    - **DUPLICATION RISK**: Create content audit matrix to prevent duplicate information across multiple folders
+    - **MIGRATION SAFETY**: Add explicit backup and rollback procedures before high-risk Phase 3 cleanup
+    - **VALIDATION MISSING**: Add validation checklists and success criteria for each migration phase
+    - **MAINTENANCE MODEL**: Define documentation ownership and review cycles for new structure
+    - **AUTOMATION GAPS**: Include automated link checking and content validation tools in migration plan
+    - **USER FEEDBACK**: Add user testing or feedback collection mechanism to validate new structure
+    - **NAVIGATION AIDS**: Plan for breadcrumbs, cross-references, and site map to prevent user confusion
+    - _Requirements: Documentation Architecture, User Experience, Maintainability, Risk Management_
   - [ ] 11.1 Fix error pattern detection testing documentation accuracy
     - Correct inaccurate test descriptions in docs/testing/error-pattern-detection-testing.md
     - Align documentation claims with actual test script capabilities
@@ -200,6 +224,26 @@
     - Simplify overly complex documentation structure while maintaining essential information
     - Add missing documentation about test environment prerequisites
     - _Requirements: Documentation Quality, User Experience, Accuracy_
+  - [ ] 11.1.1 Improve monitoring user guide documentation quality **[HIGH PRIORITY - DOCUMENTATION QUALITY ISSUES]**
+    - **CRITICAL USER IMPACT**: This is the first link in the new docs/README.md Quick Start section - quality issues here will frustrate users immediately
+    - **CONSISTENCY**: Fix inconsistent command examples - some use `<name>` placeholder, others use `<n>` (line 148)
+    - **MAINTAINABILITY**: Extract repeated kubectl port-forward commands into reusable code blocks to reduce duplication (lines 11-12, 21-22, 198, 225, 270)
+    - **ACCURACY**: Validate all script references exist and work as documented (./scripts/monitoring-health-check.sh, ./scripts/cleanup-stuck-monitoring.sh)
+    - **USABILITY**: Add error handling guidance for common port-forward failures (port already in use, context not found)
+    - **SECURITY**: Remove hardcoded credentials reference and point to secure credential retrieval methods (line 40)
+    - **COMPLETENESS**: Add missing troubleshooting steps for when Tailscale context doesn't exist or auth fails
+    - **ORGANIZATION**: Create consistent section structure - some sections have subsections, others don't follow the same pattern
+    - **VALIDATION**: Add verification steps after each major operation to confirm success before proceeding
+    - **CROSS-REFERENCES**: Ensure all referenced files and scripts actually exist in the repository structure
+    - **PLATFORM-SPECIFIC**: Add Windows/Linux alternatives to macOS-specific commands like `open` and `pkill`
+    - _Requirements: Documentation Quality, User Experience, Accuracy, Cross-Platform Support_
+  - [ ] 11.1.2 Validate documentation cross-references in new docs/README.md **[NEW - LINK VALIDATION]**
+    - **BROKEN LINK PREVENTION**: Verify all files referenced in Quick Start section exist and are accessible
+    - **SCRIPT VALIDATION**: Confirm emergency CLI script and health check scripts work as documented
+    - **CONTENT ACCURACY**: Ensure referenced guides match their descriptions in the README
+    - **USER JOURNEY TESTING**: Test the complete user flow from README through referenced guides
+    - **MAINTENANCE AUTOMATION**: Add automated link checking to prevent future broken references
+    - _Requirements: Documentation Quality, User Experience, Link Integrity_
   - [ ] 11.2 Improve pre-commit documentation accuracy
     - Fix inconsistent validation step descriptions between docs and implementation
     - Add detailed validation strategy explanations for each file type
@@ -245,7 +289,7 @@
     - Add parallel test execution capability with proper synchronization
     - Implement test result persistence and detailed reporting with failure analysis
     - _Requirements: Code Quality, Maintainability, Testing, Reliability_
-  - [ ] 11.8 Refactor emergency CLI scripts for improved maintainability and robustness
+  - [ ] 11.8 Refactor emergency CLI scripts for improved maintainability and robustness (OWNS EMERGENCY CLI)
     - **CRITICAL CODE SMELLS**: Extract duplicated kubectl command patterns into reusable functions (emergency-cli.sh lines 95-98, 110-113, emergency-cleanup.sh lines 180-190, 220-230)
     - **PERFORMANCE ISSUE**: Replace inefficient while-loop parsing with proper array handling for resource lists (emergency-cleanup.sh lines 140-150, 200-210, 280-290)
     - **MAINTAINABILITY**: Create shared configuration module for common constants (colors, timeouts, paths) duplicated across both scripts
@@ -256,16 +300,20 @@
     - **LOGGING**: Standardize logging format and add structured logging with severity levels and operation context
     - **CONFIGURATION**: Add configuration file support for default timeouts, backup retention, and operation preferences
     - **TESTING**: Create unit test framework for individual functions using bash testing tools (bats or similar)
+    - **EXTENSIBILITY**: Create plugin architecture for other specs to add domain-specific commands (monitoring, storage, etc.)
     - _Requirements: Code Quality, Maintainability, Security, Reliability, Performance_
+    - _Note: This task OWNS the emergency CLI - other specs add features after this refactoring_
 
-- [ ] 12. Security Hardening and Secret Management
-  - [ ] 12.1 Implement SOPS encryption for Tailscale secrets **[CRITICAL - SECURITY VULNERABILITY]**
-    - **IMMEDIATE**: Encrypt the hardcoded Tailscale auth key using SOPS (currently exposed in plaintext)
-    - Remove plaintext authentication credentials from Git repository
-    - Create encrypted secret templates for different environments
-    - Add SOPS decryption to Flux Kustomization configurations
-    - Document secret rotation procedures using encrypted storage
-    - _Requirements: Security, Secret Management, GitOps Best Practices_
+- [ ] 12. Security Hardening and Secret Management **[URGENT - ACTIVE SECURITY BREACH]**
+  - [ ] 12.1 Implement SOPS encryption for Tailscale secrets **[CRITICAL - SECURITY VULNERABILITY - ACTIVE]**
+    - **IMMEDIATE ACTION REQUIRED**: A plaintext Tailscale auth key was just committed to Git (tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y)
+    - **STEP 1**: Revoke the exposed auth key in Tailscale admin console immediately
+    - **STEP 2**: Generate new auth key and encrypt with SOPS before committing
+    - **STEP 3**: Remove plaintext credentials from Git history (git filter-branch or BFG)
+    - **STEP 4**: Create encrypted secret templates for different environments
+    - **STEP 5**: Add SOPS decryption to Flux Kustomization configurations
+    - **STEP 6**: Document secret rotation procedures using encrypted storage
+    - _Requirements: Security, Secret Management, GitOps Best Practices, Incident Response_
   - [ ] 12.2 Establish environment-specific secret isolation
     - Create separate Tailscale auth keys for dev/staging/prod environments
     - Implement per-environment secret namespacing and access controls
@@ -281,16 +329,16 @@
     - **DOCUMENTATION**: Add comprehensive documentation for network range management and security model
     - **ARCHITECTURE**: Replace hardcoded network ranges with Kustomize patches per environment
     - _Requirements: Security, Maintainability, Environment Isolation, Best Practices, Reliability_
-  - [ ] 12.6 Address specific Tailscale configuration code quality issues **[DETAILED ANALYSIS]**
-    - **SECURITY VULNERABILITY**: Init container uses `privileged: true` (line 19) - replace with specific capabilities like `CAP_NET_ADMIN`
-    - **RELIABILITY ISSUE**: Missing health checks - add liveness/readiness probes to detect Tailscale daemon failures
-    - **MAINTAINABILITY ISSUE**: Hardcoded network ranges in base configuration (line 50) - should use Kustomize patches per environment
-    - **BEST PRACTICE VIOLATION**: Using `:latest` image tag (line 31) - pin to specific version for reproducible deployments
-    - **RESOURCE MANAGEMENT**: Current resource limits (100m CPU, 100Mi memory) may be insufficient for production workloads
-    - **CONFIGURATION DRIFT**: No validation that advertised routes match actual cluster network configuration
-    - **DOCUMENTATION GAP**: Missing inline comments explaining security model and network architecture decisions
-    - **TESTING GAP**: No mechanism to validate subnet router connectivity or route advertisement
-    - _Requirements: Security, Reliability, Maintainability, Best Practices, Testing_
+  - [ ] 12.6 Address specific Tailscale configuration code quality issues **[DETAILED ANALYSIS - UPDATED]**
+    - **CRITICAL SECURITY**: Init container uses `privileged: true` (subnet-router.yaml:19) - replace with specific capabilities `CAP_NET_ADMIN` and `CAP_SYS_ADMIN`
+    - **CRITICAL SECURITY**: Using `:latest` image tag (subnet-router.yaml:31) - pin to specific version like `tailscale/tailscale:v1.56.1`
+    - **HIGH MAINTAINABILITY**: Hardcoded network ranges in base (subnet-router.yaml:50) - create environment-specific Kustomize patches for `TS_ROUTES`
+    - **HIGH RELIABILITY**: Missing health checks - add liveness/readiness probes to detect Tailscale daemon failures and validate connectivity
+    - **MEDIUM RESOURCE**: Current resource limits (100m CPU, 100Mi memory) may be insufficient - create environment-specific resource patches
+    - **MEDIUM ARCHITECTURE**: No environment overlays - create dev/staging/prod overlay structure for proper environment isolation
+    - **LOW DOCUMENTATION**: Missing inline comments explaining security model, network architecture, and capability requirements
+    - **LOW TESTING**: No connectivity validation mechanism - add health check endpoints or validation scripts
+    - _Requirements: Security, Reliability, Maintainability, Best Practices, Environment Isolation_
   - [ ] 12.3 Implement automated secret rotation strategy
     - Create tooling for automated Tailscale auth key rotation
     - Build secret lifecycle management with expiration tracking
@@ -304,3 +352,22 @@
     - Implement secret format validation and compliance checking
     - Create automated remediation suggestions for secret violations
     - _Requirements: Security, Validation, Prevention_
+  - [ ] 12.5 Refactor Tailscale configuration for proper GitOps patterns **[HIGH PRIORITY - MULTIPLE ISSUES]**
+    - **CRITICAL**: Pin Tailscale image to specific version tags instead of :latest (currently using latest tag)
+    - **SECURITY**: Replace privileged init container with specific capability requirements (currently uses privileged: true)
+    - **MAINTAINABILITY**: Create environment-specific overlays for network range configuration (hardcoded ranges in base)
+    - **RELIABILITY**: Add proper health checks (liveness/readiness probes) to subnet router (currently missing)
+    - **PERFORMANCE**: Implement configurable resource limits per environment (current limits may be insufficient)
+    - **DOCUMENTATION**: Add comprehensive documentation for network range management and security model
+    - **ARCHITECTURE**: Replace hardcoded network ranges with Kustomize patches per environment
+    - _Requirements: Security, Maintainability, Environment Isolation, Best Practices, Reliability_
+  - [ ] 12.6 Address specific Tailscale configuration code quality issues **[DETAILED ANALYSIS - UPDATED]**
+    - **CRITICAL SECURITY**: Init container uses `privileged: true` (subnet-router.yaml:19) - replace with specific capabilities `CAP_NET_ADMIN` and `CAP_SYS_ADMIN`
+    - **CRITICAL SECURITY**: Using `:latest` image tag (subnet-router.yaml:31) - pin to specific version like `tailscale/tailscale:v1.56.1`
+    - **HIGH MAINTAINABILITY**: Hardcoded network ranges in base (subnet-router.yaml:50) - create environment-specific Kustomize patches for `TS_ROUTES`
+    - **HIGH RELIABILITY**: Missing health checks - add liveness/readiness probes to detect Tailscale daemon failures and validate connectivity
+    - **MEDIUM RESOURCE**: Current resource limits (100m CPU, 100Mi memory) may be insufficient - create environment-specific resource patches
+    - **MEDIUM ARCHITECTURE**: No environment overlays - create dev/staging/prod overlay structure for proper environment isolation
+    - **LOW DOCUMENTATION**: Missing inline comments explaining security model, network architecture, and capability requirements
+    - **LOW TESTING**: No connectivity validation mechanism - add health check endpoints or validation scripts
+    - _Requirements: Security, Reliability, Maintainability, Best Practices, Environment Isolation_

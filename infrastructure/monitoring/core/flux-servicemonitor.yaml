@@ -1,15 +1,21 @@
-# Flux Controller Metrics Collection
+# Flux Controller Metrics Collection - Optimized PodMonitor Approach
 #
 # Flux controllers expose metrics on port 8080 (http-prom) but their services
 # only expose HTTP port 80. Therefore, we use PodMonitor to collect metrics
-# directly from controller pods rather than through services.
+# directly from controller pods.
 #
 # Controllers monitored:
-# - source-controller: Git/OCI repository management
-# - kustomize-controller: Kustomization reconciliation
-# - helm-controller: Helm release management
-# - notification-controller: Event notifications
+# - source-controller: Git/OCI repository management (HAS service, but no metrics port)
+# - notification-controller: Event notifications (HAS service, but no metrics port)
+# - kustomize-controller: Kustomization reconciliation (NO service)
+# - helm-controller: Helm release management (NO service)
+#
+# This approach ensures:
+# - Complete coverage for all controllers regardless of service status
+# - Direct access to metrics endpoints on port 8080 (http-prom)
+# - Optimal performance with metric filtering and relabeling
 ---
+# PodMonitor for ALL Flux controllers (comprehensive coverage)
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -22,7 +28,6 @@ metadata:
     monitoring.k3s-flux.io/component: flux-metrics
 spec:
   # Monitor all Flux controller pods directly
-  # (including those without services)
   namespaceSelector:
     matchNames:
       - flux-system
@@ -36,7 +41,7 @@ spec:
           - helm-controller
           - notification-controller
   podMetricsEndpoints:
-    # Metrics endpoint for all Flux controllers
+    # Optimized metrics endpoint configuration
     - port: http-prom
       path: /metrics
       interval: 30s
@@ -54,11 +59,36 @@ spec:
           targetLabel: pod
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
-        # Add cluster label
+        # Add cluster label for multi-cluster identification
         - targetLabel: cluster
           replacement: k3s-flux
+        # Add component label for better organization (extract component from controller name)
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: component
+          regex: (.+)-controller
+          replacement: ${1}
+        # Add instance label for Grafana dashboards
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: instance
       metricRelabelings:
-        # Keep only relevant Flux metrics to reduce cardinality
+        # Keep only relevant Flux and runtime metrics to reduce cardinality
         - sourceLabels: [__name__]
-          regex: "flux_.*|gotk_.*|controller_runtime_.*|workqueue_.*|rest_client_.*"
+          regex: "flux_.*|gotk_.*|controller_runtime_.*|workqueue_.*|rest_client_.*|process_.*|go_.*"
           action: keep
+        # Drop high-cardinality histogram buckets for performance
+        - sourceLabels: [__name__]
+          regex: "rest_client_request_duration_seconds_bucket|workqueue_queue_duration_seconds_bucket|controller_runtime_reconcile_time_seconds_bucket"
+          action: drop
+        # Drop verbose Go runtime metrics
+        - sourceLabels: [__name__]
+          regex: "go_gc_.*|go_memstats_.*_total|go_memstats_.*_bytes"
+          action: drop
+        # Keep essential Go metrics
+        - sourceLabels: [__name__]
+          regex: "go_goroutines|go_threads|go_memstats_alloc_bytes|go_memstats_heap_.*_bytes"
+          action: keep
+        # Normalize controller names in metric labels (remove -controller suffix)
+        - sourceLabels: [controller]
+          targetLabel: controller
+          regex: (.+)-controller
+          replacement: ${1}

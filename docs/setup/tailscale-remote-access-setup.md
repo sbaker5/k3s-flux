@@ -144,16 +144,62 @@ kubectl --server=http://100.x.x.x:8080 get nodes
 
 ## Step 9: Set Up Port Forwarding for Services
 
-```bash
-# Forward Grafana (if you have monitoring setup)
-kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address=0.0.0.0
+### Recommended Method: Local Port Forwarding
 
-# Forward Longhorn UI
-kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 --address=0.0.0.0
+**Key Discovery**: kubectl port-forward works locally through the k3s-remote context! You don't need to SSH to the k3s node and run port-forward there.
+
+```bash
+# Switch to remote context
+kubectl config use-context k3s-remote
+
+# Forward services (runs on MacBook, connects through Tailscale)
+kubectl port-forward -n monitoring svc/monitoring-core-prometheus-prometheus 9090:9090 &
+kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 &
+kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 &
+
+# Access via localhost (NOT Tailscale IP)
+open http://localhost:9090   # Prometheus
+open http://localhost:3000   # Grafana
+open http://localhost:8080   # Longhorn
+
+# Cleanup when done
+pkill -f "kubectl port-forward"
+kubectl config use-context default  # Switch back to local
+```
+
+### How It Works
+
+1. **k3s-remote context**: Configured to connect to k3s cluster via Tailscale
+2. **kubectl port-forward**: Runs locally but connects through the remote context
+3. **Tailscale routing**: Handles the network routing transparently
+4. **Local access**: Services accessible via localhost, not Tailscale IPs
+
+### Alternative Method: Remote Port Forwarding
+
+If the local method doesn't work, you can use remote port forwarding:
+
+```bash
+# SSH to k3s node and forward with external access
+ssh k3s1-tailscale "kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address=0.0.0.0"
 
 # Access from your MacBook using Tailscale IP
 # http://100.x.x.x:3000  (Grafana)
 # http://100.x.x.x:8080  (Longhorn)
+```
+
+### Common Service Names
+
+```bash
+# Monitoring services
+kubectl port-forward -n monitoring svc/monitoring-core-prometheus-prometheus 9090:9090 &
+kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 &
+
+# Longhorn service
+kubectl port-forward -n longhorn-system svc/longhorn-frontend 8080:80 &
+
+# Check available services
+kubectl get svc -n monitoring
+kubectl get svc -n longhorn-system
 ```
 
 ## Security Best Practices
@@ -223,6 +269,49 @@ tailscale ping k3s-cluster
 
 # Check k3s node Tailscale logs
 kubectl logs -n tailscale deployment/tailscale-subnet-router -f
+```
+
+### Port Forwarding Troubleshooting
+
+#### Port Forward Not Working
+```bash
+# Check if port forward is running
+ps aux | grep "kubectl port-forward"
+
+# Check logs with verbose output
+kubectl port-forward -n monitoring svc/service 9090:9090 -v=6
+
+# Kill existing port forwards
+pkill -f "kubectl port-forward"
+```
+
+#### Context Issues
+```bash
+# Check current context
+kubectl config current-context
+
+# List all contexts
+kubectl config get-contexts
+
+# Switch contexts
+kubectl config use-context k3s-remote  # For remote
+kubectl config use-context default     # For local
+```
+
+#### Common Mistakes to Avoid
+
+**❌ Wrong: SSH + Remote Port Forward**
+```bash
+# This is more complex and unnecessary
+ssh k3s1-tailscale "kubectl port-forward -n monitoring svc/service 9090:9090 --address=0.0.0.0"
+curl http://100.84.71.112:9090  # Access via Tailscale IP
+```
+
+**✅ Right: Local Port Forward + Localhost Access**
+```bash
+kubectl config use-context k3s-remote
+kubectl port-forward -n monitoring svc/service 9090:9090
+curl http://localhost:9090  # This works!
 ```
 
 ## Alternative: Direct Node Access

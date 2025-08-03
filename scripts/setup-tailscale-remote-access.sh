@@ -148,10 +148,10 @@ show_next_steps() {
     echo "   ping <k3s-tailscale-ip>"
     echo
     echo "4. ${CYAN}Set up kubectl access:${NC}"
-    echo "   See: docs/tailscale-remote-access-setup.md"
+    echo "   See: docs/setup/tailscale-remote-access-setup.md"
     echo
     echo -e "${GREEN}✅ Tailscale setup complete!${NC}"
-    echo "Full documentation: docs/tailscale-remote-access-setup.md"
+    echo "Full documentation: docs/setup/tailscale-remote-access-setup.md"
 }
 
 # Main function

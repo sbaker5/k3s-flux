@@ -1,9 +1,10 @@
 # Workspace Rules for Planning and Task Tracking
 
-## Canonical Planning File
-- The ONLY valid plan file is `/Users/stephenbaker/Documents/hackathon/k3s-flux/docs/plan.md`.
-- ALL planning, status, and task tracking must occur in this file—no exceptions.
-- No other `plan.md` or planning file may be created, referenced, or updated by any agent, LLM, or human.
+## Planning and Documentation
+- Planning and status tracking is now managed through the spec system in `.kiro/specs/`
+- The previous `docs/plan.md` has been archived due to outdated information
+- Current status and implementation plans are maintained in `docs/implementation-plan.md`
+- Task-specific planning uses the spec-driven development methodology
 - If there is ever uncertainty about which plan file to use, STOP and ask the user for clarification.
 - Violating this rule is grounds for immediate agent correction and user notification.
 

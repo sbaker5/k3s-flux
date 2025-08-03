@@ -44,6 +44,10 @@ check_tools() {
         missing_tools+=("force-delete-namespace.sh")
     fi
     
+    if [[ ! -f "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" ]]; then
+        missing_tools+=("cleanup-stuck-monitoring.sh")
+    fi
+    
     if [[ ${#missing_tools[@]} -gt 0 ]]; then
         error_exit "Missing required tools: ${missing_tools[*]}"
     fi
@@ -51,6 +55,7 @@ check_tools() {
     # Make scripts executable
     chmod +x "$SCRIPT_DIR/emergency-cleanup.sh"
     chmod +x "$SCRIPT_DIR/force-delete-namespace.sh"
+    chmod +x "$SCRIPT_DIR/cleanup-stuck-monitoring.sh"
 }
 
 # Display system status
@@ -147,6 +152,31 @@ show_status() {
         echo -e "  ${RED}❌${NC} Flux system namespace not found"
     fi
     echo
+    
+    # Monitoring status
+    echo -e "${CYAN}Monitoring Status:${NC}"
+    if kubectl get namespace monitoring &>/dev/null; then
+        local monitoring_pods_ready
+        monitoring_pods_ready=$(kubectl get pods -n monitoring --no-headers 2>/dev/null | awk '{print $2}' | grep -c "/" | grep -c "1/1\|2/2\|3/3" || echo "0")
+        local monitoring_pods_total
+        monitoring_pods_total=$(kubectl get pods -n monitoring --no-headers 2>/dev/null | wc -l || echo "0")
+        
+        if [[ "$monitoring_pods_ready" -eq "$monitoring_pods_total" && "$monitoring_pods_total" -gt 0 ]]; then
+            echo -e "  ${GREEN}✓${NC} Monitoring pods running ($monitoring_pods_ready/$monitoring_pods_total)"
+        else
+            echo -e "  ${RED}❌${NC} Monitoring pods not ready ($monitoring_pods_ready/$monitoring_pods_total)"
+        fi
+        
+        # Check for stuck monitoring namespace
+        local monitoring_deletion_timestamp
+        monitoring_deletion_timestamp=$(kubectl get namespace monitoring -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null || echo "null")
+        if [[ "$monitoring_deletion_timestamp" != "null" ]]; then
+            echo -e "  ${RED}❌${NC} Monitoring namespace stuck in Terminating state"
+        fi
+    else
+        echo -e "  ${YELLOW}⚠${NC} Monitoring namespace not found"
+    fi
+    echo
 }
 
 # Interactive menu
@@ -163,6 +193,9 @@ show_menu() {
     echo "8. List all stuck namespaces"
     echo "9. Clean up all stuck namespaces"
     echo "10. Run comprehensive cleanup"
+    echo "11. Assess monitoring system health"
+    echo "12. Clean up stuck monitoring resources"
+    echo "13. Comprehensive monitoring cleanup"
     echo "0. Exit"
     echo
 }
@@ -204,7 +237,7 @@ interactive_mode() {
     while true; do
         echo
         show_menu
-        read -p "Select an option (0-10): " -r choice
+        read -p "Select an option (0-13): " -r choice
         echo
         
         case "$choice" in
@@ -261,12 +294,33 @@ interactive_mode() {
             10)
                 comprehensive_cleanup
                 ;;
+            11)
+                "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" assess
+                ;;
+            12)
+                echo -e "${CYAN}Monitoring cleanup options:${NC}"
+                echo "  a) Assess monitoring health"
+                echo "  b) Clean up monitoring namespace"
+                echo "  c) Clean up monitoring CRDs"
+                echo "  d) Comprehensive monitoring cleanup"
+                read -p "Select monitoring cleanup option (a-d): " -r monitoring_choice
+                case "$monitoring_choice" in
+                    a) "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" assess ;;
+                    b) "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" namespace ;;
+                    c) "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" crds ;;
+                    d) "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" comprehensive ;;
+                    *) echo -e "${RED}Invalid monitoring option${NC}" ;;
+                esac
+                ;;
+            13)
+                "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" comprehensive
+                ;;
             0)
                 echo "Exiting..."
                 break
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 0-10.${NC}"
+                echo -e "${RED}Invalid option. Please select 0-13.${NC}"
                 ;;
         esac
         
@@ -296,6 +350,13 @@ Commands:
     force-delete <type> <name> [ns] Force delete resource
     list-namespaces               List stuck namespaces
     cleanup-namespaces            Clean up all stuck namespaces
+    
+    # Monitoring-specific commands:
+    monitoring-assess             Assess monitoring system health
+    monitoring-detect             Detect stuck monitoring resources
+    monitoring-namespace          Clean up monitoring namespace
+    monitoring-crds               Clean up stuck monitoring CRDs
+    monitoring-comprehensive      Comprehensive monitoring cleanup
 
 Options:
     -h, --help                    Show this help message
@@ -392,6 +453,21 @@ main() {
             ;;
         "cleanup-namespaces")
             "$SCRIPT_DIR/force-delete-namespace.sh" cleanup-all
+            ;;
+        "monitoring-assess")
+            "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" assess
+            ;;
+        "monitoring-detect")
+            "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" detect
+            ;;
+        "monitoring-namespace")
+            "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" namespace
+            ;;
+        "monitoring-crds")
+            "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" crds
+            ;;
+        "monitoring-comprehensive")
+            "$SCRIPT_DIR/cleanup-stuck-monitoring.sh" comprehensive
             ;;
         *)
             error_exit "Unknown command: $command. Use -h for help."

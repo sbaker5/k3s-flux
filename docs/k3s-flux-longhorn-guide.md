@@ -589,7 +589,7 @@ kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
 - **Recovery Timeline:**
   - Disk/node reconciliation can take 5–10+ minutes after a full reset—be patient.
 - **Permanent Reference:**
-  - For step-by-step commands and YAML, see the main guide sections above and `docs/longhorn-setup.md`.
+  - For step-by-step commands and YAML, see the main guide sections above and `docs/setup/longhorn-setup.md`.
 
 ---
 3. **Node Recovery**

@@ -10,21 +10,309 @@ packages:
   - jq
   - curl
   - wget
+  - netcat-openbsd
+  - systemd-journal-remote
 
-# Enable iscsid
+# Create directories for logging and health checks
+write_files:
+  - path: /opt/k3s-onboarding/onboarding.log
+    content: ""
+    permissions: "0644"
+  - path: /opt/k3s-onboarding/status.json
+    content: |
+      {
+        "status": "initializing",
+        "timestamp": "",
+        "steps": {
+          "packages_installed": false,
+          "iscsi_enabled": false,
+          "k3s_installed": false,
+          "cluster_joined": false,
+          "node_labeled": false,
+          "health_check_ready": false
+        },
+        "errors": []
+      }
+    permissions: "0644"
+  - path: /opt/k3s-onboarding/health-check.sh
+    content: |
+      #!/bin/bash
+      # Health check endpoint for k3s2 onboarding status
+
+      LOG_FILE="/opt/k3s-onboarding/onboarding.log"
+      STATUS_FILE="/opt/k3s-onboarding/status.json"
+
+      # Function to update status
+      update_status() {
+        local step="$1"
+        local status="$2"
+        local error_msg="$3"
+
+        timestamp=$(date -Iseconds)
+
+        if [ "$status" = "true" ]; then
+          jq --arg step "$step" --arg ts "$timestamp" \
+            '.steps[$step] = true | .timestamp = $ts' \
+            "$STATUS_FILE" > /tmp/status.json && \
+            mv /tmp/status.json "$STATUS_FILE"
+          echo "[$timestamp] SUCCESS: $step completed" >> "$LOG_FILE"
+        else
+          jq --arg step "$step" --arg ts "$timestamp" --arg error "$error_msg" \
+            '.steps[$step] = false | .timestamp = $ts | .errors += [$error]' \
+            "$STATUS_FILE" > /tmp/status.json && \
+            mv /tmp/status.json "$STATUS_FILE"
+          echo "[$timestamp] ERROR: $step failed - $error_msg" >> "$LOG_FILE"
+        fi
+      }
+
+      # Function to check overall status
+      check_overall_status() {
+        local all_complete=true
+
+        # Check if all steps are complete
+        for step in packages_installed iscsi_enabled k3s_installed \
+                    cluster_joined node_labeled; do
+          if ! jq -e ".steps.$step == true" "$STATUS_FILE" >/dev/null; then
+            all_complete=false
+            break
+          fi
+        done
+
+        if [ "$all_complete" = "true" ]; then
+          jq '.status = "completed"' "$STATUS_FILE" > /tmp/status.json && \
+            mv /tmp/status.json "$STATUS_FILE"
+          update_status "health_check_ready" "true" ""
+        fi
+      }
+
+      # Export functions for use in other scripts
+      export -f update_status
+      export -f check_overall_status
+    permissions: "0755"
+  - path: /opt/k3s-onboarding/k3s-install-with-retry.sh
+    content: |
+      #!/bin/bash
+      # K3s installation with retry mechanism and validation
+
+      source /opt/k3s-onboarding/health-check.sh
+
+      LOG_FILE="/opt/k3s-onboarding/onboarding.log"
+      K3S_URL="https://192.168.86.71:6443"
+      K3S_TOKEN="K10ae2f303b4ca2fa85815ccaeaf3eddb0aeed9bc3fa3da22b4fbcb0d8d33d6a41f::server:2e2bf7cb49a2d04ec34f4b6b41485ce6"
+      MAX_RETRIES=5
+      RETRY_DELAY=30
+
+      # Function to validate cluster connectivity
+      validate_cluster_connectivity() {
+        echo "[$timestamp] Validating cluster connectivity..." >> "$LOG_FILE"
+
+        # Check if k3s1 API server is reachable
+        if ! nc -z 192.168.86.71 6443; then
+          echo "[$timestamp] ERROR: Cannot reach k3s1 API server" >> "$LOG_FILE"
+          return 1
+        fi
+
+        # Test API server response
+        if ! curl -k --connect-timeout 10 "$K3S_URL/version" >/dev/null 2>&1; then
+          echo "[$timestamp] ERROR: k3s1 API server not responding" >> "$LOG_FILE"
+          return 1
+        fi
+
+        echo "[$timestamp] Cluster connectivity validated" >> "$LOG_FILE"
+        return 0
+      }
+      # Function to install k3s with retries
+      install_k3s_with_retry() {
+        local attempt=1
+
+        while [ $attempt -le $MAX_RETRIES ]; do
+          timestamp=$(date -Iseconds)
+          echo "[$timestamp] K3s installation attempt $attempt" >> "$LOG_FILE"
+
+          # Validate connectivity before attempting installation
+          if ! validate_cluster_connectivity; then
+            update_status "k3s_installed" "false" \
+              "Cluster connectivity validation failed on attempt $attempt"
+            if [ $attempt -eq $MAX_RETRIES ]; then
+              return 1
+            fi
+            echo "[$timestamp] Retrying in $RETRY_DELAY seconds..." >> "$LOG_FILE"
+            sleep $RETRY_DELAY
+            attempt=$((attempt + 1))
+            continue
+          fi
+
+          # Attempt k3s installation
+          if curl -sfL https://get.k3s.io | \
+             K3S_URL="$K3S_URL" K3S_TOKEN="$K3S_TOKEN" \
+             sh - >> "$LOG_FILE" 2>&1; then
+            echo "[$timestamp] K3s installation completed" >> "$LOG_FILE"
+
+            # Wait for k3s agent to be ready
+            local ready_attempts=0
+            while [ $ready_attempts -lt 30 ]; do
+              if systemctl is-active --quiet k3s-agent; then
+                echo "[$timestamp] K3s agent is ready" >> "$LOG_FILE"
+                update_status "k3s_installed" "true" ""
+                return 0
+              fi
+              sleep 2
+              ready_attempts=$((ready_attempts + 1))
+            done
+
+            update_status "k3s_installed" "false" \
+              "K3s agent failed to become ready within timeout"
+          else
+            update_status "k3s_installed" "false" \
+              "K3s installation failed on attempt $attempt"
+          fi
+
+          if [ $attempt -eq $MAX_RETRIES ]; then
+            echo "[$timestamp] K3s installation failed after retries" >> "$LOG_FILE"
+            return 1
+          fi
+
+          echo "[$timestamp] Retrying in $RETRY_DELAY seconds..." >> "$LOG_FILE"
+          sleep $RETRY_DELAY
+          attempt=$((attempt + 1))
+        done
+      }
+      # Function to validate cluster join
+      validate_cluster_join() {
+        local max_wait=120
+        local wait_time=0
+
+        echo "[$timestamp] Validating cluster join..." >> "$LOG_FILE"
+
+        while [ $wait_time -lt $max_wait ]; do
+          if KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get nodes | \
+             grep -q "$(hostname)"; then
+            if KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl get nodes \
+               "$(hostname)" | grep -q "Ready"; then
+              echo "[$timestamp] Node joined cluster successfully" >> "$LOG_FILE"
+              update_status "cluster_joined" "true" ""
+              return 0
+            fi
+          fi
+          sleep 5
+          wait_time=$((wait_time + 5))
+        done
+
+        update_status "cluster_joined" "false" \
+          "Node failed to join cluster within timeout"
+        return 1
+      }
+
+      # Function to apply node labels with retry
+      apply_node_labels_with_retry() {
+        local attempt=1
+        local max_attempts=3
+
+        while [ $attempt -le $max_attempts ]; do
+          timestamp=$(date -Iseconds)
+          echo "[$timestamp] Applying node labels attempt $attempt" >> "$LOG_FILE"
+
+          if KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node \
+             "$(hostname)" node.longhorn.io/create-default-disk=config \
+             --overwrite >> "$LOG_FILE" 2>&1 && \
+             KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node \
+             "$(hostname)" storage=longhorn --overwrite >> "$LOG_FILE" 2>&1; then
+            echo "[$timestamp] Node labels applied successfully" >> "$LOG_FILE"
+            update_status "node_labeled" "true" ""
+            return 0
+          else
+            echo "[$timestamp] Failed to apply node labels" >> "$LOG_FILE"
+          fi
+
+          if [ $attempt -eq $max_attempts ]; then
+            update_status "node_labeled" "false" \
+              "Failed to apply node labels after $max_attempts attempts"
+            return 1
+          fi
+
+          sleep 10
+          attempt=$((attempt + 1))
+        done
+      }
+      # Main execution
+      main() {
+        timestamp=$(date -Iseconds)
+        echo "[$timestamp] Starting k3s installation process" >> "$LOG_FILE"
+
+        # Install k3s with retry mechanism
+        if ! install_k3s_with_retry; then
+          echo "[$timestamp] FATAL: K3s installation failed" >> "$LOG_FILE"
+          exit 1
+        fi
+
+        # Validate cluster join
+        if ! validate_cluster_join; then
+          echo "[$timestamp] FATAL: Cluster join validation failed" >> "$LOG_FILE"
+          exit 1
+        fi
+
+        # Apply node labels
+        if ! apply_node_labels_with_retry; then
+          echo "[$timestamp] WARNING: Node labeling failed" >> "$LOG_FILE"
+        fi
+
+        # Final status check
+        check_overall_status
+
+        timestamp=$(date -Iseconds)
+        echo "[$timestamp] K3s onboarding process completed" >> "$LOG_FILE"
+      }
+
+      # Run main function
+      main
+    permissions: "0755"
+  - path: /etc/systemd/system/k3s-onboarding-health.service
+    content: |
+      [Unit]
+      Description=K3s Onboarding Health Check Service
+      After=network.target
+
+      [Service]
+      Type=simple
+      ExecStart=/bin/bash -c 'while true; do nc -l -p 8080 -c "echo -e \"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n$(cat /opt/k3s-onboarding/status.json)\""; done'
+      Restart=always
+      RestartSec=5
+      User=root
+
+      [Install]
+      WantedBy=multi-user.target
+    permissions: "0644"
+
+# Create directory structure
 runcmd:
-  # Enable iscsid (required for Longhorn)
-  - systemctl enable --now iscsid
+  # Create onboarding directory
+  - mkdir -p /opt/k3s-onboarding
 
-  # Disk discovery will be handled by Flux DaemonSet
-  # Just ensure iSCSI is ready for Longhorn
-  
-  # Install k3s and join cluster
-  - curl -sfL https://get.k3s.io | K3S_URL=https://192.168.86.71:6443 K3S_TOKEN=K10ae2f303b4ca2fa85815ccaeaf3eddb0aeed9bc3fa3da22b4fbcb0d8d33d6a41f::server:2e2bf7cb49a2d04ec34f4b6b41485ce6 sh -
-  
-  # Label node for Longhorn
-  - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) node.longhorn.io/create-default-disk=config
-  - KUBECONFIG=/etc/rancher/k3s/k3s.yaml kubectl label node $(hostname) storage=longhorn
-  
-  # Node disk configuration will be managed by GitOps
-  # The k3s2-node-config will be applied via Flux after node joins
+  # Initialize logging
+  - timestamp=$(date -Iseconds)
+  - echo "[$timestamp] Starting k3s2 onboarding process" >> /opt/k3s-onboarding/onboarding.log
+
+  # Source health check functions
+  - source /opt/k3s-onboarding/health-check.sh
+
+  # Update status for package installation
+  - update_status "packages_installed" "true" ""
+
+  # Enable and start iscsid (required for Longhorn)
+  - |
+    if systemctl enable --now iscsid >> /opt/k3s-onboarding/onboarding.log 2>&1; then
+      update_status "iscsi_enabled" "true" ""
+    else
+      update_status "iscsi_enabled" "false" "Failed to enable iscsid service"
+    fi
+
+  # Start health check service
+  - systemctl daemon-reload
+  - systemctl enable --now k3s-onboarding-health.service
+
+  # Run k3s installation with retry mechanism
+  - /opt/k3s-onboarding/k3s-install-with-retry.sh
+
+  # Log completion
+  - timestamp=$(date -Iseconds)
+  - echo "[$timestamp] Cloud-init runcmd phase completed" >> /opt/k3s-onboarding/onboarding.log

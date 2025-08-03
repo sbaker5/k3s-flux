@@ -203,3 +203,185 @@ This script supports:
 [ERROR] These changes would cause Kubernetes reconciliation failures.
 [ERROR] Consider using resource replacement strategies or blue-green deployments.
 ```
+
+## k3s2-pre-onboarding-validation.sh
+
+Comprehensive validation script that ensures the k3s cluster is ready for k3s2 node onboarding. This script orchestrates multiple validation modules to verify cluster health, network connectivity, storage systems, and monitoring infrastructure.
+
+### Usage
+
+```bash
+# Run comprehensive pre-onboarding validation
+./scripts/k3s2-pre-onboarding-validation.sh
+
+# Generate detailed validation report
+./scripts/k3s2-pre-onboarding-validation.sh --report
+
+# Attempt to fix identified issues (where possible)
+./scripts/k3s2-pre-onboarding-validation.sh --fix
+
+# Combined report generation and issue fixing
+./scripts/k3s2-pre-onboarding-validation.sh --report --fix
+```
+
+### Validation Modules
+
+The script includes four specialized validation modules:
+
+#### 1. Cluster Readiness Validation (`cluster-readiness-validation.sh`)
+- **k3s1 Control Plane Health**: Validates control plane node status and components
+- **API Server Responsiveness**: Tests Kubernetes API server health endpoints
+- **Flux System Health**: Verifies GitOps controllers are operational
+- **Resource Availability**: Checks cluster capacity for additional nodes
+
+#### 2. Network Connectivity Verification (`network-connectivity-verification.sh`)
+- **Cluster Network Configuration**: Validates CIDR ranges and network policies
+- **Flannel CNI Health**: Verifies container network interface functionality
+- **NodePort Accessibility**: Tests ingress controller port availability
+- **DNS Resolution**: Validates cluster DNS functionality
+
+#### 3. Storage System Health Check (`storage-health-check.sh`)
+- **Longhorn System Health**: Validates distributed storage system status
+- **Storage Prerequisites**: Checks iSCSI and kernel module requirements
+- **Disk Discovery System**: Verifies automated disk detection functionality
+- **Storage Capacity**: Validates available storage for new node integration
+
+#### 4. Monitoring System Validation (`monitoring-validation.sh`)
+- **Prometheus Health**: Validates metrics collection system status
+- **Grafana Accessibility**: Tests dashboard and visualization availability
+- **ServiceMonitor/PodMonitor**: Verifies metric collection configurations
+- **Alert Manager**: Validates alerting system functionality
+
+### What it validates
+
+- ✅ **Cluster Health**: Control plane, API server, and core components
+- ✅ **Network Readiness**: CNI, ingress, and connectivity prerequisites
+- ✅ **Storage Integration**: Longhorn health and expansion readiness
+- ✅ **Monitoring Systems**: Metrics collection and alerting functionality
+- ✅ **GitOps Operations**: Flux controllers and reconciliation health
+- ✅ **Resource Capacity**: Available resources for node expansion
+
+### What it catches
+
+- ✅ Control plane component failures
+- ✅ Network configuration issues
+- ✅ Storage system problems
+- ✅ Monitoring infrastructure failures
+- ✅ GitOps reconciliation issues
+- ✅ Resource capacity constraints
+
+### Exit codes
+
+- `0` - All validations passed, cluster ready for k3s2 onboarding
+- `1` - Critical issues found, onboarding not recommended
+- `2` - Warnings present, onboarding possible with caution
+
+### Report Generation
+
+When using `--report`, the script generates a detailed markdown report at:
+```
+/tmp/k3s2-validation-reports/k3s2-pre-onboarding-YYYYMMDD-HHMMSS.md
+```
+
+The report includes:
+- **Executive Summary**: Overall readiness status
+- **Detailed Results**: Per-module validation results
+- **Issue Analysis**: Identified problems and recommendations
+- **Next Steps**: Specific actions required before onboarding
+
+### Integration
+
+This script is designed for:
+- ✅ **Pre-deployment validation** - Verify cluster readiness before k3s2 onboarding
+- ✅ **Automated testing** - Integration with CI/CD pipelines
+- ✅ **Operational procedures** - Regular cluster health assessments
+- ✅ **Troubleshooting** - Systematic diagnosis of cluster issues
+
+### Requirements
+
+- `kubectl` - Kubernetes cluster access
+- `flux` CLI - GitOps system validation
+- `curl` - HTTP endpoint testing
+- Cluster admin permissions for comprehensive validation
+
+### Example Output
+
+```bash
+$ ./scripts/k3s2-pre-onboarding-validation.sh --report
+
+k3s2 Pre-Onboarding Validation v1.0
+===================================
+
+=== CLUSTER READINESS VALIDATION ===
+✅ k3s1 node status: Ready
+✅ Control plane: k3s embedded (no separate pods)
+✅ API server health check: OK
+✅ Flux system health: All controllers operational
+
+=== NETWORK CONNECTIVITY VERIFICATION ===
+✅ Cluster CIDR: matches k3s default (10.42.0.0/16)
+✅ Service CIDR: matches k3s default (10.43.0.0/16)
+✅ Flannel CNI: configuration found
+✅ NodePort services: accessible on ports 30080, 30443
+
+=== STORAGE SYSTEM HEALTH CHECK ===
+✅ Longhorn manager: 1/1 pods running
+✅ Longhorn driver deployer: 1/1 pods running
+✅ Storage prerequisites: iSCSI daemon active
+✅ Disk discovery: DaemonSet operational
+
+=== MONITORING SYSTEM VALIDATION ===
+✅ Prometheus pods: 1/1 running
+✅ Grafana service: accessible
+✅ ServiceMonitor/PodMonitor: configurations valid
+✅ Alert Manager: operational
+
+=== VALIDATION SUMMARY ===
+✅ All validation checks passed (24/24)
+✅ Cluster is ready for k3s2 node onboarding
+📄 Detailed report: /tmp/k3s2-validation-reports/k3s2-pre-onboarding-20250131-143022.md
+
+Next steps:
+1. Prepare k3s2 hardware/VM
+2. Deploy with cloud-init configuration
+3. Monitor onboarding progress via HTTP endpoint
+```
+## 
+Development Best Practices
+
+### Script Development Best Practices
+
+When developing or modifying shell scripts, especially validation scripts, follow these critical best practices:
+
+#### Critical Guidelines
+- **NEVER use `((var++))` with `set -euo pipefail`** - Use `$((var + 1))` instead
+- **Add `|| true` to test functions** that should continue even after failures
+- **Always use timeouts** for network operations (`--connect-timeout`, `--timeout`)
+- **Implement cleanup functions** and use `trap cleanup_function EXIT`
+- **Account for k3s architecture** - embedded components, not separate pods
+
+#### Required Resources
+- **[Script Development Best Practices](../.kiro/steering/08-script-development-best-practices.md)** - **CRITICAL**: Comprehensive best practices automatically applied when working with shell scripts
+- **[Validation Script Development](../docs/troubleshooting/validation-script-development.md)** - Detailed lessons learned and troubleshooting patterns
+- **[Validation Test Cases](../tests/validation/)** - Example validation patterns and test scenarios
+
+#### Key Patterns
+- Use consistent logging functions with timestamps
+- Implement proper error handling for strict mode
+- Include resource cleanup and timeout handling
+- Test with both passing and failing conditions
+- Provide progress indicators for long operations
+
+### Script Development Checklist
+
+When creating new validation scripts:
+
+- [ ] Use consistent logging functions with timestamps
+- [ ] Implement proper error handling for `set -euo pipefail`
+- [ ] Add timeout handling for network operations
+- [ ] Include resource cleanup functions
+- [ ] Test with both passing and failing conditions
+- [ ] Account for k3s architecture differences
+- [ ] Provide progress indicators for long operations
+- [ ] Generate structured output (JSON/markdown reports)
+- [ ] Include usage examples and exit code documentation

@@ -281,7 +281,7 @@ spec:
         - record: gitops:reconciliation_success_rate
           expr: |
             (
-              rate(controller_runtime_reconcile_total[5m]) - 
+              rate(controller_runtime_reconcile_total[5m]) -
               rate(controller_runtime_reconcile_errors_total[5m])
             ) / rate(controller_runtime_reconcile_total[5m])
 
@@ -293,11 +293,13 @@ spec:
         # Recording rule for resource readiness by kind
         - record: gitops:resource_readiness_by_kind
           expr: |
-            sum by (kind) (gotk_reconcile_condition{type="Ready", status="True"}) /
-            sum by (kind) (gotk_reconcile_condition{type="Ready"})
+            sum by (kind) (
+              gotk_reconcile_condition{type="Ready", status="True"}
+            ) / sum by (kind) (gotk_reconcile_condition{type="Ready"})
 
         # Recording rule for API request error rate
         - record: gitops:api_request_error_rate
           expr: |
-            rate(rest_client_requests_total{job=~".*flux.*", code=~"4..|5.."}[5m]) /
-            rate(rest_client_requests_total{job=~".*flux.*"}[5m])
+            rate(rest_client_requests_total{
+              job=~".*flux.*", code=~"4..|5.."
+            }[5m]) / rate(rest_client_requests_total{job=~".*flux.*"}[5m])

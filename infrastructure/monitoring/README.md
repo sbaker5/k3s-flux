@@ -129,12 +129,15 @@ resources:
 ./scripts/cleanup-stuck-monitoring.sh
 
 # 2. Deploy core monitoring
-flux reconcile kustomization monitoring -n flux-system
+flux reconcile kustomization infrastructure-monitoring -n flux-system
 
 # 3. Verify core monitoring is healthy
-kubectl get pods -n monitoring -l monitoring.k3s-flux.io/tier=core
+kubectl get pods -n monitoring -l app.kubernetes.io/name=monitoring-core
 
-# 4. (Optional) Enable long-term monitoring
+# 4. Run comprehensive health check
+./scripts/monitoring-health-assessment.sh
+
+# 5. (Optional) Enable long-term monitoring when Longhorn is stable
 # Edit infrastructure/monitoring/kustomization.yaml
 # Uncomment: - longterm/
 ```
@@ -173,10 +176,16 @@ kubectl get volumes -n longhorn-system
 3. Data continuity maintained via remote_write from core
 
 #### Complete Monitoring Failure
-1. Run cleanup script: `./scripts/cleanup-stuck-monitoring.sh`
-2. Redeploy core monitoring: `flux reconcile kustomization monitoring`
-3. Core monitoring provides immediate visibility
+1. Run comprehensive cleanup: `./scripts/cleanup-stuck-monitoring.sh`
+2. Redeploy core monitoring: `flux reconcile kustomization infrastructure-monitoring -n flux-system`
+3. Validate recovery: `./scripts/monitoring-health-assessment.sh`
 4. Re-enable long-term tier when ready
+
+#### Remote Access During Failures
+1. Use Tailscale remote access when MCP tools are unavailable
+2. SSH to cluster: `ssh k3s1-tailscale`
+3. Run emergency procedures: `./scripts/emergency-cli.sh status`
+4. Manual service forwarding: `kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address=0.0.0.0`
 
 ## Future Considerations
 
@@ -231,6 +240,30 @@ storageSpec:
 ```
 
 This hybrid architecture ensures monitoring remains available during storage issues while providing optional historical data when needed.
+
+## Monitoring System Cleanup and Maintenance
+
+The monitoring system includes comprehensive cleanup and maintenance procedures to ensure reliable operation:
+
+### Automated Cleanup
+- **Cleanup Script**: `./scripts/cleanup-stuck-monitoring.sh` - Comprehensive monitoring system cleanup
+- **Health Validation**: `./scripts/monitoring-health-assessment.sh` - Automated health checks
+- **Stuck Resource Recovery**: Procedures for handling stuck namespaces, PVCs, and CRDs
+
+### Bulletproof Architecture Benefits
+- **No Storage Dependencies**: Core monitoring uses ephemeral storage only
+- **Fast Recovery**: Quick deployment and startup times
+- **Resource Limits**: Controlled resource usage prevents cluster impact
+- **Remote Access**: Tailscale provides emergency access when MCP tools fail
+
+### Emergency Procedures
+When MCP tools are unavailable:
+1. Use Tailscale remote access: `ssh k3s1-tailscale`
+2. Run emergency CLI: `./scripts/emergency-cli.sh status`
+3. Manual service access: Port forward with `--address=0.0.0.0` for remote access
+4. Health validation: `./scripts/monitoring-health-assessment.sh`
+
+For detailed cleanup and maintenance procedures, see [Monitoring System Cleanup Guide](../docs/operations/monitoring-system-cleanup.md).
 
 ## Flux Monitoring Integration
 

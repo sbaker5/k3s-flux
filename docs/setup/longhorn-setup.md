@@ -35,10 +35,11 @@ Longhorn provides enterprise-grade persistent storage for Kubernetes workloads w
 - **UI Access**: Available via NGINX Ingress at `/longhorn` path
 
 ### Current Configuration
-- **Replica Count**: 2 (configurable per volume)
-- **Default Data Path**: `/var/lib/longhorn/`
-- **Node Scheduling**: Enabled for all worker nodes
+- **Replica Count**: 2 (configurable per volume, distributed across nodes)
+- **Default Data Path**: `/var/lib/longhorn/` (k3s1), `/mnt/longhorn/sdb1` (k3s2)
+- **Node Scheduling**: Enabled for all worker nodes (k3s1, k3s2 when available)
 - **Backup Target**: Not configured by default
+- **Multi-Node**: Supports automatic expansion when k3s2 joins cluster
 
 ## Architecture
 
@@ -65,9 +66,10 @@ Longhorn's architecture is designed for reliability and performance in a distrib
 5. Snapshots and backups can be scheduled or triggered manually
 
 ### High Availability
-- **Replication**: Configurable replica count (default: 2)
-- **Node Failure**: Automatic failover to healthy replicas
+- **Replication**: Configurable replica count (default: 2, distributed across nodes)
+- **Node Failure**: Automatic failover to healthy replicas on other nodes
 - **Volume Recovery**: Automatic rebuilding of failed replicas
+- **Multi-Node Support**: Replicas distributed across k3s1 and k3s2 for true redundancy
 
 ### Storage Backend
 - **Local Storage**: Utilizes node-local storage in `/var/lib/longhorn/`
@@ -77,6 +79,17 @@ Longhorn's architecture is designed for reliability and performance in a distrib
 ## Installation
 
 Longhorn is deployed using Flux CD with GitOps principles. The configuration is stored in the cluster's Git repository under `infrastructure/longhorn/`.
+
+### Multi-Node Considerations
+
+The Longhorn setup is designed to automatically expand when additional nodes join the cluster:
+
+- **k3s1**: Primary node with storage at `/var/lib/longhorn/`
+- **k3s2**: Worker node with dedicated storage at `/mnt/longhorn/sdb1` (when available)
+- **Automatic Discovery**: Disk discovery DaemonSet automatically detects and prepares storage on new nodes
+- **GitOps Managed**: Node-specific configurations managed through Flux Kustomizations
+
+See [Multi-Node Cluster Expansion Guide](multi-node-cluster-expansion.md) for detailed k3s2 onboarding procedures.
 
 ### Prerequisites
 

@@ -17,7 +17,7 @@
       "tests/**/*.yaml",
       "tests/**/*.yml",
       "*.md",
-      "docs/plan.md",
+      "docs/implementation-plan.md",
       "docs/RULES.md"
     ]
   },
