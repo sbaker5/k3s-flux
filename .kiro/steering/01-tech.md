@@ -4,6 +4,33 @@ inclusion: always
 
 # Technology Stack
 
+## ⚠️ CRITICAL DEVELOPMENT RULES
+
+### Git Commit Validation
+**NEVER use `git commit --no-verify` unless it's a genuine emergency.**
+
+- Pre-commit hooks exist for security and quality validation
+- They catch secrets, syntax errors, and breaking changes before they reach the repository
+- Bypassing validation defeats the entire purpose of GitOps safety measures
+- If validation fails, fix the issue rather than bypassing it
+
+**Emergency bypass procedure (use sparingly):**
+1. Document why bypass is necessary in commit message
+2. Create immediate follow-up task to fix the underlying issue
+3. Review what validation failed and improve the process
+
+### Documentation References
+
+For comprehensive information beyond these steering files, reference:
+
+- **Security**: `docs/security/` - Incident response, hardening guides, secret management
+- **Setup Guides**: `docs/setup/` - Initial cluster setup, component installation
+- **Troubleshooting**: `docs/troubleshooting/` - Systematic debugging procedures
+- **Architecture**: `docs/architecture-overview.md` - System design and patterns
+- **Monitoring**: `docs/monitoring/` - Observability and alerting configuration
+- **Scripts**: `scripts/` - Automation tools and validation utilities
+- **Specs**: `.kiro/specs/` - Feature specifications and implementation plans
+
 ## Core Technologies
 - **Kubernetes Distribution**: k3s (lightweight Kubernetes)
 - **GitOps**: Flux CD v2.6+ for continuous deployment
@@ -87,5 +114,12 @@ mcp_kubernetes_kubectl_describe  # Describe resources
 ## Build and Test Patterns
 - **GitOps Workflow**: All changes via Git commits, no direct kubectl apply
 - **Environment Promotion**: Changes flow from dev → staging → prod
-- **Validation**: Flux dry-run and health checks before deployment
+- **Pre-commit Validation**: YAML syntax, secret scanning, kustomization builds, immutable field checks
+- **Deployment Validation**: Flux dry-run and health checks before deployment
 - **Rollback**: Git revert for immediate rollback capability
+
+### Validation Hierarchy
+1. **Pre-commit hooks** - Catch issues before they reach Git (NEVER bypass with --no-verify)
+2. **CI/CD validation** - Additional checks in GitHub Actions
+3. **Flux validation** - Runtime validation during deployment
+4. **Health checks** - Post-deployment monitoring and alerting
