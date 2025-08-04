@@ -14,6 +14,10 @@ resources:
   - flux-alerts.yaml
   - gitops-resilience-alerts.yaml
   - gitops-health-dashboard.yaml
+  - multi-node-servicemonitor.yaml
+  - k3s2-node-dashboard.yaml
+  - k3s2-node-alerts.yaml
+  - multi-node-cluster-dashboard.yaml
 
 # Common labels for core monitoring
 commonLabels:

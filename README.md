@@ -10,6 +10,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 
 ### Quick Start - What You Need Most
 - **[k3s2 Node Onboarding Status](docs/k3s2-onboarding-status.md)** - 🚀 **Ready for Deployment** - Complete infrastructure prepared
+- **[k3s2 Onboarding Completion Summary](docs/k3s2-onboarding-completion-summary.md)** - ✅ **Implementation Complete** - Comprehensive completion status
 - **[Monitoring Guide](docs/guides/monitoring-user-guide.md)** - How to access and read your dashboards
 - **[Remote Access Guide](docs/guides/remote-access-quick-reference.md)** - Access your cluster from anywhere
 - **[Application Management](docs/application-management.md)** - Deploy and manage applications
@@ -23,6 +24,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 - **[Monitoring Operations](docs/operations/monitoring-system-cleanup.md)** - Fix monitoring issues
 - **[Flux Recovery](docs/troubleshooting/flux-recovery-guide.md)** - Fix GitOps issues
 - **[Dependency Cleanup](docs/operations/dependency-aware-cleanup.md)** - Clean up stuck resources
+- **[MCP Tools Guide](docs/mcp-tools-guide.md)** - Enhanced cluster interaction with specialized Flux troubleshooting workflows
 
 ### Architecture & Reference
 - [Architecture Overview](docs/architecture-overview.md) - System design, components, and data flows
@@ -55,7 +57,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
   - ✅ **Comprehensive troubleshooting documentation** - Recovery procedures for common failure scenarios
   - ✅ **Error pattern detection system** - Advanced controller monitoring 20+ error patterns with real-time event correlation
   - ✅ **Automated recovery system** - Complete error pattern detection and resource recreation automation
-  - 🚧 **Multi-node cluster expansion** - k3s2 worker node onboarding with automated storage integration (GitOps configuration ready, cloud-init enhanced, pre-onboarding validation scripts completed, ready for deployment)
+  - ✅ **Multi-node cluster expansion** - k3s2 worker node onboarding with automated storage integration (GitOps configuration ready, cloud-init enhanced, pre-onboarding validation scripts completed, monitoring integration completed, comprehensive onboarding orchestration completed, ready for deployment)
   - 🚧 **Resource lifecycle management** - Blue-green deployment patterns for immutable resources
   - 🚧 **Change impact analysis** - Dependency mapping and cascade effect analysis
   - 🚧 **Staged deployment validation** - Multi-stage rollout with validation gates
@@ -72,7 +74,7 @@ See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/) a
 - [flux](https://fluxcd.io/docs/installation/) CLI (v2.0.0+)
 - [Git](https://git-scm.com/)
 - [Helm](https://helm.sh/) (v3.0.0+)
-- **MCP Tools** (recommended): Flux and Kubernetes MCP servers for enhanced cluster interaction
+- **MCP Tools** (recommended): Flux and Kubernetes MCP servers for enhanced cluster interaction with comprehensive built-in guidance
 
 #### macOS Development Environment
 For macOS users, install prerequisites using Homebrew:
@@ -292,10 +294,11 @@ tests/
 - Check for immutable field conflicts: `./scripts/check-immutable-fields.sh`
 
 ### MCP-Enhanced Operations (Recommended)
-- Check Flux installation: Use MCP Flux tools for comprehensive status
-- Trigger reconciliation: Use MCP Flux reconciliation tools
-- Get resource details: Use MCP Kubernetes tools for enhanced resource inspection
-- Search Flux docs: Use MCP Flux documentation search for troubleshooting
+- Check Flux installation: Use MCP Flux tools for comprehensive status with automatic guidance
+- Trigger reconciliation: Use MCP Flux reconciliation tools with systematic workflows
+- Get resource details: Use MCP Kubernetes tools for enhanced resource inspection with best practices
+- Search Flux docs: Use MCP Flux documentation search for troubleshooting with integrated help
+- **Always-Available Guidance**: Comprehensive Kubernetes operations guidance automatically included in all interactions
 
 ### Monitoring Operations
 - **Quick Access**: `kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 &` then visit http://localhost:3000

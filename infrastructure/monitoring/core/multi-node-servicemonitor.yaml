@@ -1,0 +1,160 @@
+---
+# Multi-Node ServiceMonitor for comprehensive node monitoring
+# This ensures both k3s1 and k3s2 nodes are properly monitored
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: multi-node-monitoring
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: multi-node-monitoring
+    app.kubernetes.io/instance: multi-node-monitoring
+    app.kubernetes.io/part-of: k3s-flux
+    monitoring.k3s-flux.io/component: multi-node-monitoring
+spec:
+  # Monitor node-exporter services across all nodes
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-node-exporter
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        # Add cluster label for multi-cluster identification
+        - targetLabel: cluster
+          replacement: k3s-flux
+        # Extract node name from instance label
+        - sourceLabels: [__meta_kubernetes_endpoint_address_target_name]
+          targetLabel: node_name
+        # Add monitoring tier label
+        - targetLabel: monitoring_tier
+          replacement: core
+        # Preserve original instance label
+        - sourceLabels: [__address__]
+          targetLabel: instance
+      metricRelabelings:
+        # Keep essential node metrics for multi-node monitoring
+        - sourceLabels: [__name__]
+          regex: "node_cpu_seconds_total|node_memory_.*|node_filesystem_.*|node_network_.*|node_load.*|node_boot_time_seconds|up"
+          action: keep
+        # Add node-specific labels for k3s1 and k3s2 identification
+        - sourceLabels: [instance]
+          regex: ".*k3s1.*"
+          targetLabel: node_role
+          replacement: control-plane
+        - sourceLabels: [instance]
+          regex: ".*k3s2.*"
+          targetLabel: node_role
+          replacement: worker
+        # Add node tier for monitoring organization
+        - sourceLabels: [instance]
+          regex: ".*k3s1.*"
+          targetLabel: node_tier
+          replacement: primary
+        - sourceLabels: [instance]
+          regex: ".*k3s2.*"
+          targetLabel: node_tier
+          replacement: expansion
+
+---
+# PodMonitor for kubelet metrics from both nodes
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: multi-node-kubelet
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: multi-node-kubelet
+    app.kubernetes.io/instance: multi-node-kubelet
+    app.kubernetes.io/part-of: k3s-flux
+    monitoring.k3s-flux.io/component: multi-node-kubelet
+spec:
+  # Monitor kubelet pods across all nodes
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      k8s-app: kubelet
+  podMetricsEndpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        # Add cluster label
+        - targetLabel: cluster
+          replacement: k3s-flux
+        # Add node information
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        # Add node role based on node name
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          regex: "k3s1"
+          targetLabel: node_role
+          replacement: control-plane
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          regex: "k3s2"
+          targetLabel: node_role
+          replacement: worker
+      metricRelabelings:
+        # Keep essential kubelet metrics
+        - sourceLabels: [__name__]
+          regex: "kubelet_.*|container_.*|pod_.*"
+          action: keep
+        # Drop high-cardinality metrics
+        - sourceLabels: [__name__]
+          regex: "container_tasks_state|container_memory_failures_total"
+          action: drop
+
+---
+# ServiceMonitor for kube-proxy metrics from both nodes
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: multi-node-kube-proxy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: multi-node-kube-proxy
+    app.kubernetes.io/instance: multi-node-kube-proxy
+    app.kubernetes.io/part-of: k3s-flux
+    monitoring.k3s-flux.io/component: multi-node-kube-proxy
+spec:
+  # Monitor kube-proxy services
+  selector:
+    matchLabels:
+      k8s-app: kube-proxy
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        # Add cluster label
+        - targetLabel: cluster
+          replacement: k3s-flux
+        # Add node role identification
+        - sourceLabels: [__meta_kubernetes_endpoint_address_target_name]
+          regex: ".*k3s1.*"
+          targetLabel: node_role
+          replacement: control-plane
+        - sourceLabels: [__meta_kubernetes_endpoint_address_target_name]
+          regex: ".*k3s2.*"
+          targetLabel: node_role
+          replacement: worker
+      metricRelabelings:
+        # Keep essential kube-proxy metrics
+        - sourceLabels: [__name__]
+          regex: "kubeproxy_.*|rest_client_.*"
+          action: keep

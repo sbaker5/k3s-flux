@@ -9,7 +9,7 @@ This directory contains comprehensive security documentation for the k3s GitOps 
 Based on the GitOps resilience patterns spec analysis:
 
 1. **Plaintext Tailscale Auth Key in Git** 
-   - **Key**: `tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y`
+   - **Key**: `[REDACTED-EXPOSED-KEY]`
    - **Location**: `infrastructure/tailscale/base/secret.yaml`
    - **Action**: [Incident Response Guide](incident-response.md#phase-2-containment)
 

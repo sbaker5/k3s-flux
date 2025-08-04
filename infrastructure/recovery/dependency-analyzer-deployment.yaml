@@ -1,0 +1,236 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dependency-analyzer-script
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  analyzer.py: |
+    # This will be populated by the actual dependency-analyzer.py file
+    # For now, we'll use a placeholder that imports the main module
+    import sys
+    import os
+
+    # Add the recovery module path
+    sys.path.append('/app')
+
+    # Import and run the dependency analyzer
+    try:
+        from dependency_analyzer import DependencyAnalyzer
+        
+        analyzer = DependencyAnalyzer()
+        analyzer.run_demo()
+    except ImportError as e:
+        print(f"Error importing dependency analyzer: {e}")
+        print("Running in standalone mode...")
+        
+        # Fallback to basic functionality
+        import logging
+        import time
+        
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger('dependency-analyzer-fallback')
+        
+        logger.info("🚀 Dependency Analyzer (Fallback Mode)")
+        logger.info("📋 This is a simplified version for demonstration")
+        
+        while True:
+            logger.info("🔍 Checking for dependency analysis requests...")
+            logger.info("📊 No active recovery operations detected")
+            logger.info("⏳ Waiting for next check cycle...")
+            time.sleep(60)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dependency-analyzer
+  namespace: flux-recovery
+  labels:
+    app: dependency-analyzer
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dependency-analyzer
+  template:
+    metadata:
+      labels:
+        app: dependency-analyzer
+    spec:
+      serviceAccountName: dependency-analyzer
+      containers:
+        - name: analyzer
+          image: python:3.11-alpine
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              pip install pyyaml kubernetes
+
+              # Create writable directory
+              mkdir -p /tmp/app
+
+              # Copy the dependency analyzer script
+              cp /scripts/dependency-analyzer.py /tmp/app/dependency_analyzer.py
+
+              # Run the main dependency analyzer
+              cd /tmp/app && python dependency_analyzer.py
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PYTHONPATH
+              value: "/app"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: analyzer-script
+              mountPath: /app
+              readOnly: true
+            - name: dependency-script
+              mountPath: /scripts
+              readOnly: true
+            - name: recovery-config
+              mountPath: /etc/recovery-config
+              readOnly: true
+      volumes:
+        - name: analyzer-script
+          configMap:
+            name: dependency-analyzer-script
+            defaultMode: 0755
+        - name: dependency-script
+          configMap:
+            name: dependency-analyzer-code
+            defaultMode: 0755
+        - name: recovery-config
+          configMap:
+            name: recovery-patterns-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dependency-analyzer
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dependency-analyzer
+  labels:
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+rules:
+  # Read all resources for dependency analysis
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+  - apiGroups: ["extensions"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+
+  # Flux resources
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch", "update", "delete", "create"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch", "update", "delete", "create"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch", "update", "delete", "create"]
+  - apiGroups: ["notification.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch", "update", "delete", "create"]
+
+  # Monitoring resources
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch", "update", "delete", "create"]
+
+  # Storage resources
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+
+  # Events and status updates
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "patch", "update"]
+    resourceNames: ["dependency-analysis-state", "recovery-patterns-config"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dependency-analyzer
+  labels:
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dependency-analyzer
+subjects:
+  - kind: ServiceAccount
+    name: dependency-analyzer
+    namespace: flux-recovery
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dependency-analysis-state
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: dependency-analyzer
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  analysis-state.yaml: |
+    # Dependency analysis state tracking
+    last_analysis: ""
+    dependency_graph_version: "1.0"
+    active_recoveries: {}
+    completed_recoveries: {}
+
+    # Analysis statistics
+    stats:
+      total_resources_analyzed: 0
+      total_dependencies_discovered: 0
+      circular_dependencies_detected: 0
+      recovery_operations_completed: 0
+      average_recovery_time: "0s"
+
+    # Configuration
+    config:
+      analysis_interval: 300  # 5 minutes
+      dependency_cache_ttl: 1800  # 30 minutes
+      max_concurrent_recoveries: 3
+      enable_predictive_analysis: true
+      enable_impact_scoring: true

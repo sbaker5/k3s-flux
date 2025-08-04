@@ -346,6 +346,349 @@ Next steps:
 2. Deploy with cloud-init configuration
 3. Monitor onboarding progress via HTTP endpoint
 ```
+
+## post-onboarding-health-verification.sh
+
+Comprehensive health verification system that validates all systems are operational and properly distributed across both k3s1 and k3s2 nodes after successful onboarding.
+
+### Usage
+
+```bash
+# Run comprehensive post-onboarding health verification
+./scripts/post-onboarding-health-verification.sh
+
+# Generate detailed health report
+./scripts/post-onboarding-health-verification.sh --report
+
+# Attempt to fix identified issues (where possible)
+./scripts/post-onboarding-health-verification.sh --fix
+
+# Include performance and load distribution tests
+./scripts/post-onboarding-health-verification.sh --performance
+
+# Combined comprehensive verification with reporting
+./scripts/post-onboarding-health-verification.sh --report --performance
+```
+
+### Verification Modules
+
+The script performs comprehensive validation across six key areas:
+
+#### 1. Multi-Node Cluster Health
+- **Node Status**: Validates both k3s1 and k3s2 are Ready
+- **Node Roles**: Verifies control plane and worker node assignments
+- **Resource Capacity**: Checks CPU, memory, and pod capacity on both nodes
+- **System Pod Distribution**: Validates system components across nodes
+
+#### 2. Storage Redundancy Verification
+- **Longhorn Node Health**: Ensures both nodes are ready for storage
+- **Disk Configuration**: Validates disk setup on both nodes
+- **Volume Replica Distribution**: Checks existing volumes have cross-node replicas
+- **Default Replica Settings**: Verifies configuration for automatic redundancy
+
+#### 3. Application Distribution Verification
+- **Pod Distribution**: Validates applications are scheduled across both nodes
+- **Deployment Health**: Checks all deployments are healthy and distributed
+- **DaemonSet Distribution**: Ensures system DaemonSets run on both nodes
+- **Load Balancing**: Verifies reasonable distribution ratios
+
+#### 4. Network Connectivity Verification
+- **CNI Health**: Validates Flannel network overlay across nodes
+- **Cross-Node Connectivity**: Tests pod-to-pod communication between nodes
+- **Service Accessibility**: Verifies services work from both nodes
+- **NodePort Functionality**: Tests ingress accessibility on both nodes
+
+#### 5. Monitoring Integration Verification
+- **Node Metrics**: Ensures both nodes are being monitored
+- **Prometheus Targets**: Validates metric collection from both nodes
+- **Grafana Integration**: Confirms dashboards show multi-node data
+- **Alert Coverage**: Verifies alerting covers both nodes
+
+#### 6. GitOps Reconciliation Verification
+- **Flux Controller Health**: Validates all GitOps controllers are operational
+- **k3s2 Configuration**: Confirms k3s2-specific resources are applied
+- **Kustomization Status**: Checks all configurations are reconciled
+- **Multi-Node Management**: Verifies GitOps manages both nodes
+
+### Performance Testing (Optional)
+
+When using `--performance`, additional tests are performed:
+
+#### Load Distribution Testing
+- **Pod Scheduling**: Creates test deployment to validate scheduler distribution
+- **Balance Analysis**: Measures distribution ratios and balance quality
+- **Scalability Assessment**: Evaluates cluster capacity and headroom
+
+#### Storage Performance Testing
+- **Cross-Node Storage**: Tests storage provisioning on both nodes
+- **I/O Performance**: Measures read/write speeds across nodes
+- **Redundancy Validation**: Confirms storage redundancy is functional
+
+### What it validates
+
+- ✅ **Multi-Node Operations**: Both nodes operational and integrated
+- ✅ **Storage Redundancy**: Distributed storage working across nodes
+- ✅ **Application Distribution**: Workloads properly distributed
+- ✅ **Network Connectivity**: Cross-node communication functional
+- ✅ **Monitoring Coverage**: Both nodes monitored and alerting
+- ✅ **GitOps Management**: Declarative management of both nodes
+
+### What it catches
+
+- ✅ Node readiness issues
+- ✅ Storage redundancy failures
+- ✅ Application scheduling problems
+- ✅ Network connectivity issues
+- ✅ Monitoring integration gaps
+- ✅ GitOps reconciliation failures
+
+### Exit codes
+
+- `0` - All verifications passed, k3s2 onboarding fully successful
+- `1-5` - Number of failed verification areas (specific issues identified)
+
+### Report Generation
+
+When using `--report`, generates detailed markdown report at:
+```
+/tmp/post-onboarding-reports/post-onboarding-health-YYYYMMDD-HHMMSS.md
+```
+
+### Integration
+
+This script is designed for:
+- ✅ **Post-deployment validation** - Verify successful k3s2 onboarding
+- ✅ **Operational verification** - Confirm multi-node cluster health
+- ✅ **Automated testing** - Integration with deployment pipelines
+- ✅ **Health monitoring** - Regular multi-node cluster assessments
+
+## storage-redundancy-validator.sh
+
+Specialized validation tool focused specifically on storage redundancy across k3s1 and k3s2 nodes, ensuring Longhorn volumes are properly distributed for high availability.
+
+### Usage
+
+```bash
+# Validate existing storage redundancy configuration
+./scripts/storage-redundancy-validator.sh
+
+# Create test volume to validate redundancy functionality
+./scripts/storage-redundancy-validator.sh --create-test-volume
+
+# Generate detailed storage redundancy report
+./scripts/storage-redundancy-validator.sh --report
+
+# Combined test volume creation and reporting
+./scripts/storage-redundancy-validator.sh --create-test-volume --report
+```
+
+### Validation Areas
+
+#### 1. Longhorn Node Configuration
+- **Node Registration**: Validates both k3s1 and k3s2 are registered in Longhorn
+- **Node Readiness**: Ensures both nodes are ready and schedulable for storage
+- **Disk Configuration**: Verifies disk setup and mount points on both nodes
+- **Storage Capacity**: Checks available storage capacity on each node
+
+#### 2. Storage Class Configuration
+- **Longhorn Storage Class**: Validates storage class exists and is configured
+- **Replica Count Settings**: Checks default replica count for redundancy
+- **Default Class Status**: Verifies if Longhorn is the default storage class
+- **Parameter Validation**: Ensures storage class parameters support redundancy
+
+#### 3. Existing Volume Analysis
+- **Volume Inventory**: Catalogs all existing Longhorn volumes
+- **Replica Distribution**: Analyzes replica placement across nodes
+- **Redundancy Status**: Identifies volumes with/without redundancy
+- **Health Assessment**: Validates volume health and accessibility
+
+#### 4. Test Volume Validation (Optional)
+- **Dynamic Provisioning**: Creates test PVC to validate provisioning
+- **Replica Creation**: Verifies test volume gets proper replica count
+- **Cross-Node Distribution**: Confirms replicas are placed on different nodes
+- **Data Persistence**: Tests basic I/O operations on test volume
+
+### What it validates
+
+- ✅ **Node Readiness**: Both nodes ready for storage operations
+- ✅ **Disk Configuration**: Proper disk setup and mount points
+- ✅ **Replica Settings**: Default configuration supports redundancy
+- ✅ **Volume Distribution**: Existing volumes have cross-node replicas
+- ✅ **Dynamic Provisioning**: New volumes get proper redundancy
+- ✅ **Data Accessibility**: Storage is accessible from both nodes
+
+### What it catches
+
+- ✅ Missing or misconfigured Longhorn nodes
+- ✅ Incorrect replica count settings
+- ✅ Volumes without redundancy
+- ✅ Storage provisioning failures
+- ✅ Cross-node distribution issues
+- ✅ Disk configuration problems
+
+### Exit codes
+
+- `0` - Storage redundancy is properly configured and functional
+- `1` - Issues found that require attention
+- `2` - Critical failures in storage redundancy
+
+## application-deployment-verifier.sh
+
+Validation tool that ensures applications can be deployed and distributed correctly across k3s1 and k3s2 nodes, verifying the cluster's application hosting capabilities.
+
+### Usage
+
+```bash
+# Verify existing application deployments
+./scripts/application-deployment-verifier.sh
+
+# Deploy test application to validate deployment capabilities
+./scripts/application-deployment-verifier.sh --deploy-test-app
+
+# Generate detailed application deployment report
+./scripts/application-deployment-verifier.sh --report
+
+# Combined test deployment and reporting
+./scripts/application-deployment-verifier.sh --deploy-test-app --report
+```
+
+### Verification Areas
+
+#### 1. Existing Deployment Analysis
+- **Deployment Health**: Validates all existing deployments are healthy
+- **Pod Distribution**: Analyzes pod placement across k3s1 and k3s2
+- **Replica Balance**: Checks distribution ratios for multi-replica deployments
+- **Node Utilization**: Evaluates how well both nodes are utilized
+
+#### 2. Service Accessibility Verification
+- **Service Discovery**: Validates services are properly configured
+- **NodePort Testing**: Tests NodePort services on both nodes
+- **Load Balancing**: Verifies traffic can reach pods on both nodes
+- **Service Endpoints**: Confirms service endpoints include both nodes
+
+#### 3. Ingress Controller Distribution
+- **NGINX Ingress**: Validates ingress controller deployment
+- **Multi-Node Availability**: Ensures ingress works from both nodes
+- **Traffic Routing**: Verifies ingress can route to pods on either node
+- **High Availability**: Confirms ingress controller redundancy
+
+#### 4. Test Application Deployment (Optional)
+- **Multi-Replica Deployment**: Creates test app with multiple replicas
+- **Cross-Node Scheduling**: Validates pods are scheduled on both nodes
+- **Service Creation**: Tests service creation and accessibility
+- **Application Functionality**: Verifies application works on both nodes
+
+### What it validates
+
+- ✅ **Application Health**: All deployments are healthy and operational
+- ✅ **Multi-Node Distribution**: Applications utilize both nodes
+- ✅ **Service Accessibility**: Services work from both nodes
+- ✅ **Load Balancing**: Traffic is distributed across nodes
+- ✅ **Ingress Functionality**: External access works via both nodes
+- ✅ **Deployment Capabilities**: New applications can be deployed successfully
+
+### What it catches
+
+- ✅ Unhealthy deployments
+- ✅ Single-node scheduling issues
+- ✅ Service accessibility problems
+- ✅ Ingress controller issues
+- ✅ Load balancing failures
+- ✅ Application deployment problems
+
+### Exit codes
+
+- `0` - Application deployment and distribution is working correctly
+- `1` - Issues found that need attention
+- `2` - Critical application deployment failures
+
+## performance-load-tester.sh
+
+Performance and load distribution testing utility that validates performance characteristics and load distribution across k3s1 and k3s2 nodes.
+
+### Usage
+
+```bash
+# Run basic performance and distribution tests
+./scripts/performance-load-tester.sh
+
+# Include network performance testing
+./scripts/performance-load-tester.sh --run-load-test
+
+# Include storage performance testing
+./scripts/performance-load-tester.sh --run-storage-test
+
+# Generate detailed performance report
+./scripts/performance-load-tester.sh --report
+
+# Comprehensive performance testing with reporting
+./scripts/performance-load-tester.sh --run-load-test --run-storage-test --report
+```
+
+### Testing Areas
+
+#### 1. Node Resource Utilization
+- **CPU Usage**: Monitors current CPU utilization on both nodes
+- **Memory Usage**: Tracks memory consumption across nodes
+- **Resource Availability**: Assesses available capacity for scaling
+- **Utilization Balance**: Evaluates resource distribution between nodes
+
+#### 2. Pod Scheduling Distribution
+- **Scheduler Testing**: Creates test deployment to validate scheduling
+- **Distribution Analysis**: Measures pod placement across nodes
+- **Balance Quality**: Evaluates how evenly pods are distributed
+- **Scaling Behavior**: Tests how scheduler handles multiple replicas
+
+#### 3. Network Performance Testing (Optional)
+- **Cross-Node Bandwidth**: Measures network performance between nodes
+- **Latency Testing**: Evaluates network latency between nodes
+- **Throughput Analysis**: Tests sustained network throughput
+- **Performance Benchmarking**: Compares against expected performance
+
+#### 4. Storage Performance Testing (Optional)
+- **I/O Performance**: Tests read/write speeds on both nodes
+- **Cross-Node Storage**: Validates storage performance across nodes
+- **Provisioning Speed**: Measures PVC creation and binding times
+- **Storage Redundancy**: Tests performance with replicated storage
+
+#### 5. Cluster Scalability Assessment
+- **Capacity Analysis**: Evaluates current vs. maximum cluster capacity
+- **Headroom Calculation**: Determines available scaling capacity
+- **Resource Limits**: Identifies potential scaling bottlenecks
+- **Growth Planning**: Provides insights for capacity planning
+
+### What it tests
+
+- ✅ **Resource Utilization**: Current and available capacity on both nodes
+- ✅ **Load Distribution**: How evenly workloads are distributed
+- ✅ **Network Performance**: Cross-node communication performance
+- ✅ **Storage Performance**: I/O performance across nodes
+- ✅ **Scalability**: Cluster's ability to handle additional workloads
+- ✅ **Performance Baselines**: Establishes performance benchmarks
+
+### What it identifies
+
+- ✅ Resource utilization imbalances
+- ✅ Network performance bottlenecks
+- ✅ Storage performance issues
+- ✅ Scheduling distribution problems
+- ✅ Scalability limitations
+- ✅ Performance regressions
+
+### Exit codes
+
+- `0` - Performance and load distribution is optimal
+- `1` - Performance issues or imbalances detected
+- `2` - Critical performance problems found
+
+### Performance Metrics
+
+The script provides detailed metrics including:
+- **Node Resource Usage**: CPU/memory utilization percentages
+- **Pod Distribution**: Exact pod counts and distribution ratios
+- **Network Bandwidth**: Measured throughput between nodes
+- **Storage I/O**: Read/write speeds in MB/s
+- **Scalability Headroom**: Available capacity for growth
 ## 
 Development Best Practices
 

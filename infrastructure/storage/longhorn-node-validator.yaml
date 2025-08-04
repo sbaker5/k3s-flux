@@ -1,0 +1,428 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: longhorn-node-validator
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: longhorn-node-validator
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+data:
+  validate-longhorn-node.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    # Longhorn Node Registration Validator
+    # This script validates that nodes are properly registered and configured in Longhorn
+
+    LOG_FILE="/var/log/longhorn-node-validation.log"
+    STATUS_FILE="/var/log/longhorn-node-status.json"
+    NODE_NAME="${NODE_NAME:-$(hostname)}"
+    VALIDATION_TIMEOUT="${VALIDATION_TIMEOUT:-300}"
+
+    # Initialize logging
+    exec 1> >(tee -a "$LOG_FILE")
+    exec 2> >(tee -a "$LOG_FILE" >&2)
+
+    # Initialize status tracking
+    init_status() {
+      cat > "$STATUS_FILE" << EOF
+    {
+      "node": "$NODE_NAME",
+      "timestamp": "$(date -Iseconds)",
+      "validation_type": "longhorn_node_registration",
+      "status": "running",
+      "timeout": $VALIDATION_TIMEOUT,
+      "checks": {
+        "longhorn_installed": {"status": "pending", "message": ""},
+        "node_registered": {"status": "pending", "message": ""},
+        "node_ready": {"status": "pending", "message": ""},
+        "disks_configured": {"status": "pending", "message": ""},
+        "storage_capacity": {"status": "pending", "message": ""}
+      },
+      "node_info": {},
+      "disk_info": {},
+      "errors": [],
+      "warnings": []
+    }
+    EOF
+    }
+
+    # Update check status
+    update_check_status() {
+      local check="$1"
+      local status="$2"
+      local message="$3"
+      
+      jq --arg check "$check" --arg status "$status" --arg message "$message" --arg ts "$(date -Iseconds)" \
+        '.timestamp = $ts | .checks[$check].status = $status | .checks[$check].message = $message' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Add error
+    add_error() {
+      local error_msg="$1"
+      echo "❌ ERROR: $error_msg"
+      jq --arg error "$error_msg" --arg ts "$(date -Iseconds)" \
+        '.errors += [{"timestamp": $ts, "message": $error}]' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Add warning
+    add_warning() {
+      local warning_msg="$1"
+      echo "⚠️  WARNING: $warning_msg"
+      jq --arg warning "$warning_msg" --arg ts "$(date -Iseconds)" \
+        '.warnings += [{"timestamp": $ts, "message": $warning}]' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Check if Longhorn is installed
+    validate_longhorn_installed() {
+      echo "🔍 Checking if Longhorn is installed..."
+      
+      # Check if Longhorn namespace exists
+      if ! kubectl get namespace longhorn-system >/dev/null 2>&1; then
+        update_check_status "longhorn_installed" "failed" "Longhorn namespace not found"
+        add_error "Longhorn namespace 'longhorn-system' does not exist"
+        return 1
+      fi
+      
+      # Check if Longhorn manager is running
+      local manager_pods
+      manager_pods=$(kubectl get pods -n longhorn-system -l app=longhorn-manager --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+      
+      if [ "$manager_pods" -eq 0 ]; then
+        update_check_status "longhorn_installed" "failed" "No running Longhorn manager pods found"
+        add_error "No running Longhorn manager pods found"
+        return 1
+      fi
+      
+      # Check if Longhorn CRDs are available
+      if ! kubectl get crd nodes.longhorn.io >/dev/null 2>&1; then
+        update_check_status "longhorn_installed" "failed" "Longhorn CRDs not found"
+        add_error "Longhorn CRDs are not installed"
+        return 1
+      fi
+      
+      update_check_status "longhorn_installed" "passed" "Longhorn is installed and running ($manager_pods manager pods)"
+      return 0
+    }
+
+    # Wait for node registration
+    wait_for_node_registration() {
+      echo "🔍 Waiting for Longhorn node registration..."
+      
+      local start_time
+      start_time=$(date +%s)
+      local timeout_time
+      timeout_time=$((start_time + VALIDATION_TIMEOUT))
+      
+      while [ "$(date +%s)" -lt "$timeout_time" ]; do
+        if kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system >/dev/null 2>&1; then
+          update_check_status "node_registered" "passed" "Node is registered with Longhorn"
+          return 0
+        fi
+        
+        local elapsed
+        elapsed=$(($(date +%s) - start_time))
+        echo "⏳ Waiting for node registration... (${elapsed}s/${VALIDATION_TIMEOUT}s)"
+        sleep 10
+      done
+      
+      update_check_status "node_registered" "failed" "Node registration timed out after ${VALIDATION_TIMEOUT}s"
+      add_error "Node registration with Longhorn timed out"
+      return 1
+    }
+
+    # Validate node readiness
+    validate_node_ready() {
+      echo "🔍 Validating Longhorn node readiness..."
+      
+      local node_status
+      node_status=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+      
+      if [ "$node_status" = "True" ]; then
+        update_check_status "node_ready" "passed" "Node is ready in Longhorn"
+        
+        # Get additional node information
+        local node_info
+        node_info=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o json 2>/dev/null || echo '{}')
+        
+        # Extract key information
+        local allowScheduling
+        allowScheduling=$(echo "$node_info" | jq -r '.spec.allowScheduling // "unknown"')
+        local region
+        region=$(echo "$node_info" | jq -r '.status.region // "unknown"')
+        local zone
+        zone=$(echo "$node_info" | jq -r '.status.zone // "unknown"')
+        
+        # Update node info in status
+        jq --argjson node_info "$node_info" \
+          --arg allowScheduling "$allowScheduling" \
+          --arg region "$region" \
+          --arg zone "$zone" \
+          '.node_info = {
+            "allowScheduling": $allowScheduling,
+            "region": $region,
+            "zone": $zone,
+            "full_info": $node_info
+          }' \
+          "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+        
+        return 0
+      elif [ "$node_status" = "False" ]; then
+        # Get the reason for not being ready
+        local ready_reason
+        ready_reason=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || echo "Unknown")
+        local ready_message
+        ready_message=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}' 2>/dev/null || echo "Unknown")
+        
+        update_check_status "node_ready" "failed" "Node is not ready - Reason: $ready_reason, Message: $ready_message"
+        add_error "Longhorn node is not ready: $ready_reason - $ready_message"
+        return 1
+      else
+        update_check_status "node_ready" "warning" "Node readiness status is unknown: $node_status"
+        add_warning "Longhorn node readiness status is unknown: $node_status"
+        return 1
+      fi
+    }
+
+    # Validate disk configuration
+    validate_disks_configured() {
+      echo "🔍 Validating Longhorn disk configuration..."
+      
+      local node_disks
+      node_disks=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.spec.disks}' 2>/dev/null || echo '{}')
+      
+      if [ "$node_disks" = "{}" ] || [ "$node_disks" = "null" ]; then
+        update_check_status "disks_configured" "warning" "No disks configured for this node"
+        add_warning "No disks are configured for Longhorn on this node"
+        return 1
+      fi
+      
+      # Count configured disks
+      local disk_count
+      disk_count=$(echo "$node_disks" | jq 'length' 2>/dev/null || echo 0)
+      
+      if [ "$disk_count" -eq 0 ]; then
+        update_check_status "disks_configured" "warning" "No disks configured"
+        add_warning "No disks are configured for this node"
+        return 1
+      fi
+      
+      # Validate each disk
+      local disk_details=()
+      local failed_disks=()
+      
+      for disk_name in $(echo "$node_disks" | jq -r 'keys[]' 2>/dev/null); do
+        local disk_path
+        disk_path=$(echo "$node_disks" | jq -r --arg disk "$disk_name" '.[$disk].path' 2>/dev/null)
+        local allow_scheduling
+        allow_scheduling=$(echo "$node_disks" | jq -r --arg disk "$disk_name" '.[$disk].allowScheduling' 2>/dev/null)
+        local storage_reserved
+        storage_reserved=$(echo "$node_disks" | jq -r --arg disk "$disk_name" '.[$disk].storageReserved' 2>/dev/null)
+        
+        # Check if disk path exists and is mounted
+        if [ -d "$disk_path" ] && mountpoint -q "$disk_path" 2>/dev/null; then
+          local available_space
+          available_space=$(df -BG "$disk_path" 2>/dev/null | awk 'NR==2 {print $4}' | sed 's/G//' || echo "unknown")
+          disk_details+=("$disk_name: $disk_path (${available_space}G available, scheduling: $allow_scheduling)")
+        else
+          failed_disks+=("$disk_name: $disk_path (not mounted or not accessible)")
+        fi
+      done
+      
+      # Update disk info in status
+      jq --argjson disk_info "$node_disks" \
+        --arg disk_count "$disk_count" \
+        '.disk_info = {
+          "count": ($disk_count | tonumber),
+          "details": $disk_info
+        }' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+      
+      if [ ${#failed_disks[@]} -eq 0 ]; then
+        update_check_status "disks_configured" "passed" "$disk_count disks configured: ${disk_details[*]}"
+        return 0
+      else
+        update_check_status "disks_configured" "failed" "Some disks failed validation: ${failed_disks[*]}"
+        add_error "Some configured disks are not accessible: ${failed_disks[*]}"
+        return 1
+      fi
+    }
+
+    # Validate storage capacity
+    validate_storage_capacity() {
+      echo "🔍 Validating storage capacity..."
+      
+      # Get node storage status
+      local storage_available
+      storage_available=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.diskStatus}' 2>/dev/null || echo '{}')
+      
+      if [ "$storage_available" = "{}" ] || [ "$storage_available" = "null" ]; then
+        update_check_status "storage_capacity" "warning" "No storage status available"
+        add_warning "Storage capacity information is not available"
+        return 1
+      fi
+      
+      local total_capacity=0
+      local total_available=0
+      local capacity_details=()
+      
+      for disk_name in $(echo "$storage_available" | jq -r 'keys[]' 2>/dev/null); do
+        local disk_capacity
+        disk_capacity=$(echo "$storage_available" | jq -r --arg disk "$disk_name" '.[$disk].storageMaximum' 2>/dev/null || echo 0)
+        local disk_available
+        disk_available=$(echo "$storage_available" | jq -r --arg disk "$disk_name" '.[$disk].storageAvailable' 2>/dev/null || echo 0)
+        
+        # Convert to GB for readability
+        local capacity_gb
+        capacity_gb=$((disk_capacity / 1024 / 1024 / 1024))
+        local available_gb
+        available_gb=$((disk_available / 1024 / 1024 / 1024))
+        
+        total_capacity=$((total_capacity + capacity_gb))
+        total_available=$((total_available + available_gb))
+        
+        capacity_details+=("$disk_name: ${available_gb}GB/${capacity_gb}GB")
+      done
+      
+      if [ "$total_capacity" -eq 0 ]; then
+        update_check_status "storage_capacity" "warning" "No storage capacity detected"
+        add_warning "No storage capacity is detected for this node"
+        return 1
+      fi
+      
+      # Check if we have reasonable available space (at least 1GB)
+      if [ "$total_available" -lt 1 ]; then
+        update_check_status "storage_capacity" "warning" "Very low available storage: ${total_available}GB"
+        add_warning "Available storage is very low: ${total_available}GB"
+        return 1
+      fi
+      
+      update_check_status "storage_capacity" "passed" "Total: ${total_available}GB/${total_capacity}GB available - Details: ${capacity_details[*]}"
+      return 0
+    }
+
+    # Main validation function
+    main() {
+      echo "🚀 Starting Longhorn node registration validation for $NODE_NAME"
+      init_status
+      
+      local overall_status="passed"
+      local checks_run=0
+      local checks_passed=0
+      
+      # Run validation checks in order
+      local checks=(
+        "validate_longhorn_installed"
+        "wait_for_node_registration"
+        "validate_node_ready"
+        "validate_disks_configured"
+        "validate_storage_capacity"
+      )
+      
+      for check_func in "${checks[@]}"; do
+        checks_run=$((checks_run + 1))
+        echo ""
+        if $check_func; then
+          checks_passed=$((checks_passed + 1))
+        else
+          overall_status="warning"
+          # For critical checks, fail completely
+          if [ "$check_func" = "validate_longhorn_installed" ] || [ "$check_func" = "wait_for_node_registration" ]; then
+            overall_status="failed"
+            break
+          fi
+        fi
+      done
+      
+      # Update final status
+      jq --arg status "$overall_status" --arg ts "$(date -Iseconds)" \
+        --arg summary "Completed $checks_passed/$checks_run checks" \
+        '.status = $status | .timestamp = $ts | .summary = $summary' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+      
+      echo ""
+      echo "🎉 Longhorn node validation completed: $overall_status ($checks_passed/$checks_run checks passed)"
+      
+      # Print summary
+      if [ "$overall_status" = "passed" ]; then
+        echo "✅ Node $NODE_NAME is successfully registered and ready in Longhorn"
+      elif [ "$overall_status" = "warning" ]; then
+        echo "⚠️  Node $NODE_NAME is registered but has some issues"
+      else
+        echo "❌ Node $NODE_NAME failed Longhorn registration validation"
+      fi
+      
+      # Return appropriate exit code
+      if [ "$overall_status" = "failed" ]; then
+        return 1
+      else
+        return 0
+      fi
+    }
+
+    # Run main function
+    main "$@"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: longhorn-node-validation
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: longhorn-node-validation
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+spec:
+  template:
+    metadata:
+      labels:
+        app: longhorn-node-validation
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: longhorn-disk-discovery
+      containers:
+        - name: validator
+          image: ubuntu:22.04
+          command:
+            - /bin/bash
+            - -c
+            - |
+              apt-get update -qq && apt-get install -y -qq jq curl
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/
+              /scripts/validate-longhorn-node.sh
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: VALIDATION_TIMEOUT
+              value: "300"
+          volumeMounts:
+            - name: validation-script
+              mountPath: /scripts
+            - name: host-var-log
+              mountPath: /var/log
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      volumes:
+        - name: validation-script
+          configMap:
+            name: longhorn-node-validator
+            defaultMode: 0755
+        - name: host-var-log
+          hostPath:
+            path: /var/log
+      tolerations:
+        - operator: Exists
+      nodeSelector:
+        storage: longhorn

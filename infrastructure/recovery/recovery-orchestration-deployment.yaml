@@ -1,0 +1,313 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recovery-orchestration-script
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  orchestrator.py: |
+    # This will be populated by the actual recovery-orchestration-controller.py file
+    import sys
+    import os
+
+    # Add the recovery module path
+    sys.path.append('/app')
+
+    # Import and run the recovery orchestrator
+    try:
+        from recovery_orchestration_controller import RecoveryOrchestrator
+        
+        orchestrator = RecoveryOrchestrator()
+        orchestrator.run_demo()
+    except ImportError as e:
+        print(f"Error importing recovery orchestrator: {e}")
+        print("Running in standalone mode...")
+        
+        # Fallback to basic functionality
+        import logging
+        import time
+        import asyncio
+        
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger('recovery-orchestrator-fallback')
+        
+        async def demo_orchestrator():
+            logger.info("🚀 Recovery Orchestration Controller (Fallback Mode)")
+            logger.info("📋 This is a simplified version for demonstration")
+            
+            cycle = 0
+            while True:
+                cycle += 1
+                logger.info(f"🔍 Orchestration cycle #{cycle}")
+                logger.info("📊 Checking for recovery operations...")
+                logger.info("🔧 No active recovery operations detected")
+                logger.info("💓 Controller health: OK")
+                logger.info(f"✅ Cycle #{cycle} completed, sleeping for 60s")
+                await asyncio.sleep(60)
+        
+        try:
+            asyncio.run(demo_orchestrator())
+        except KeyboardInterrupt:
+            logger.info("🛑 Shutting down...")
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recovery-orchestration-controller
+  namespace: flux-recovery
+  labels:
+    app: recovery-orchestration-controller
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recovery-orchestration-controller
+  template:
+    metadata:
+      labels:
+        app: recovery-orchestration-controller
+    spec:
+      serviceAccountName: recovery-orchestration-controller
+      containers:
+        - name: orchestrator
+          image: python:3.11-alpine
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              pip install pyyaml kubernetes
+
+              # Create writable directory
+              mkdir -p /tmp/app
+
+              # Copy the recovery orchestration controller script
+              cp /scripts/recovery-orchestration-controller.py /tmp/app/recovery_orchestration_controller.py
+
+              # Run the main recovery orchestrator
+              cd /tmp/app && python recovery_orchestration_controller.py
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PYTHONPATH
+              value: "/app"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: orchestrator-script
+              mountPath: /app
+              readOnly: true
+            - name: recovery-controller-script
+              mountPath: /scripts
+              readOnly: true
+            - name: recovery-config
+              mountPath: /etc/recovery-config
+              readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import requests; requests.get('http://localhost:8080/health', timeout=5)"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import requests; requests.get('http://localhost:8080/ready', timeout=5)"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: orchestrator-script
+          configMap:
+            name: recovery-orchestration-script
+            defaultMode: 0755
+        - name: recovery-controller-script
+          configMap:
+            name: recovery-orchestration-controller-code
+            defaultMode: 0755
+        - name: recovery-config
+          configMap:
+            name: recovery-patterns-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: recovery-orchestration-controller
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: recovery-orchestration-controller
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+rules:
+  # Full access to all resources for recovery operations
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["apps"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["extensions"]
+    resources: ["*"]
+    verbs: ["*"]
+
+  # Flux resources - full access for recovery operations
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["notification.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["*"]
+
+  # Monitoring resources
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["*"]
+    verbs: ["*"]
+
+  # Storage resources
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["longhorn.io"]
+    resources: ["*"]
+    verbs: ["*"]
+
+  # RBAC resources (for managing service accounts and roles during recovery)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+
+  # Custom Resource Definitions
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+
+  # Events and status updates
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "patch", "update"]
+    resourceNames: ["recovery-orchestration-state", "recovery-patterns-config"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: recovery-orchestration-controller
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: recovery-orchestration-controller
+subjects:
+  - kind: ServiceAccount
+    name: recovery-orchestration-controller
+    namespace: flux-recovery
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recovery-orchestration-state
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  orchestration-state.yaml: |
+    # Recovery orchestration state tracking
+    last_orchestration: ""
+    orchestration_version: "1.0"
+    active_operations: {}
+    completed_operations: {}
+    recovery_batches: {}
+
+    # Orchestration statistics
+    stats:
+      total_operations_created: 0
+      total_operations_completed: 0
+      total_operations_failed: 0
+      total_operations_retried: 0
+      average_recovery_time: "0s"
+      success_rate: 0.0
+
+    # Controller health
+    controller_health:
+      status: "initializing"
+      last_heartbeat: ""
+      uptime_start: ""
+      active_operations_count: 0
+      queue_size: 0
+
+    # Configuration
+    config:
+      max_concurrent_operations: 5
+      operation_timeout: 600
+      retry_delay_base: 30
+      retry_delay_max: 300
+      batch_processing_enabled: true
+      parallel_execution_enabled: true
+      validation_enabled: true
+      rollback_enabled: true
+      state_persistence_enabled: true
+      health_check_interval: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recovery-orchestration-controller
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: recovery-orchestration-controller
+    app.kubernetes.io/part-of: flux-recovery
+spec:
+  selector:
+    app: recovery-orchestration-controller
+  ports:
+    - name: http-metrics
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: http-health
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  type: ClusterIP

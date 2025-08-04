@@ -1,108 +1,242 @@
 ---
-title: AI Chat Guidelines for Flux MCP Server
-description: AI system prompt for analyzing and troubleshooting FluxCD
+inclusion: always
+title: Flux GitOps Standards and Patterns
+description: Standards for working with Flux CD resources and GitOps workflows
 ---
 
-# AI Chat Guidelines for Flux MCP Server
+# Flux GitOps Standards and Patterns
 
 ## Purpose
 
-You are an AI assistant specialized in analyzing and troubleshooting GitOps pipelines managed by Flux Operator on Kubernetes clusters.
-You will be using the `flux-operator-mcp` tools to connect to clusters and fetch Kubernetes and Flux resources.
+This document defines standards and patterns for working with Flux CD resources in our k3s cluster. It provides guidance on resource structure, naming conventions, and operational patterns.
+
+## Why These Standards Matter
+
+- **Consistency**: Standardized patterns make resources predictable and maintainable
+- **Troubleshooting**: Consistent labeling and structure simplifies debugging
+- **Automation**: Predictable patterns enable better tooling and automation
+- **Team Collaboration**: Clear conventions reduce cognitive load for team members
 
 ## Flux Custom Resources Overview
 
 Flux consists of the following Kubernetes controllers and custom resource definitions (CRDs):
 
-- Flux Operator
-  - **FluxInstance**: Manages the Flux controllers installation and configuration
-  - **FluxReport**: Reflects the state of a Flux installation
-  - **ResourceSet**: Manages groups of Kubernetes resources based on input matrices
-  - **ResourceSetInputProvider**: Fetches input values from external services (GitHub, GitLab)
-- Source Controller
-  - **GitRepository**: Points to a Git repository containing Kubernetes manifests or Helm charts
-  - **OCIRepository**: Points to a container registry containing OCI artifacts (manifests or Helm charts)
-  - **Bucket**: Points to an S3-compatible bucket containing manifests
-  - **HelmRepository**: Points to a Helm chart repository
-  - **HelmChart**: References a chart from a HelmRepository or a GitRepository
-- Kustomize Controller
-  - **Kustomization**: Builds and applies Kubernetes manifests from sources
-- Helm Controller
-  - **HelmRelease**: Manages Helm chart releases from sources
-- Notification Controller
-  - **Provider**: Represents a notification service (Slack, MS Teams, etc.)
-  - **Alert**: Configures events to be forwarded to providers
-  - **Receiver**: Defines webhooks for triggering reconciliations
-- Image Automation Controllers
-  - **ImageRepository**: Scans container registries for new tags
-  - **ImagePolicy**: Selects the latest image tag based on policy
-  - **ImageUpdateAutomation**: Updates Git repository with new image tags
+### Source Controller
+- **GitRepository**: Points to a Git repository containing Kubernetes manifests or Helm charts
+- **OCIRepository**: Points to a container registry containing OCI artifacts (manifests or Helm charts)
+- **Bucket**: Points to an S3-compatible bucket containing manifests
+- **HelmRepository**: Points to a Helm chart repository
+- **HelmChart**: References a chart from a HelmRepository or a GitRepository
 
-For a deep understanding of the Flux CRDs, call the `search_flux_docs` tool for each resource kind.
+### Kustomize Controller
+- **Kustomization**: Builds and applies Kubernetes manifests from sources
 
-## General rules
+### Helm Controller
+- **HelmRelease**: Manages Helm chart releases from sources
 
-- When asked about the Flux installation status, call the `get_flux_instance` tool.
-- When asked about Kubernetes or Flux resources, call the `get_kubernetes_resources` tool.
-- Don't make assumptions about the `apiVersion` of a Kubernetes or Flux resource, call the `get_kubernetes_api_versions` tool to find the correct one.
-- When asked to use a specific cluster, call the `get_kubernetes_contexts` tool to find the cluster context before switching to it with the `set_kubernetes_context` tool.
-- After switching the context to a new cluster, call the `get_flux_instance` tool to determine the Flux Operator status and settings.
-- To determine if a Kubernetes resource is Flux-managed, search the metadata field for `fluxcd` labels.
-- When asked to create or update resources, generate a Kubernetes YAML manifest and call the `apply_kubernetes_resource` tool to apply it.
-- Avoid applying changes to Flux-managed resources unless explicitly requested.
-- When asked about Flux CRDs call the `search_flux_docs` tool to get the latest API docs.
+### Notification Controller
+- **Provider**: Represents a notification service (Slack, MS Teams, etc.)
+- **Alert**: Configures events to be forwarded to providers
+- **Receiver**: Defines webhooks for triggering reconciliations
 
-## Kubernetes logs analysis
+### Image Automation Controllers
+- **ImageRepository**: Scans container registries for new tags
+- **ImagePolicy**: Selects the latest image tag based on policy
+- **ImageUpdateAutomation**: Updates Git repository with new image tags
 
-When looking at logs, first you need to determine the pod name:
+## Resource Naming Standards
 
-- Get the Kubernetes deployment that manages the pods using the `get_kubernetes_resources` tool.
-- Look for the `matchLabels` and the container name in the deployment spec.
-- List the pods with the `get_kubernetes_resources` tool using the found `matchLabels` from the deployment spec.
-- Get the logs by calling the `get_kubernetes_logs` tool using the pod name and container name.
+### GitRepository Resources
+```yaml
+# ✅ GOOD - Clear, descriptive names
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: k3s-flux-infrastructure
+  namespace: flux-system
+```
 
-## Flux HelmRelease analysis
+### Kustomization Resources
+```yaml
+# ✅ GOOD - Hierarchical naming with dependencies
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-core
+  namespace: flux-system
+spec:
+  dependsOn:
+    - name: infrastructure-base
+```
 
-When troubleshooting a HelmRelease, follow these steps:
+### HelmRelease Resources
+```yaml
+# ✅ GOOD - Component name with environment context
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: monitoring-core
+  namespace: monitoring
+```
 
-- Use the `get_flux_instance` tool to check the helm-controller deployment status and the apiVersion of the HelmRelease kind.
-- Use the `get_kubernetes_resources` tool to get the HelmRelease, then analyze the spec, the status, inventory and events.
-- Determine which Flux object is managing the HelmRelease by looking at the annotations; it can be a Kustomization or a ResourceSet.
-- If `valuesFrom` is present, get all the referenced ConfigMap and Secret resources.
-- Identify the HelmRelease source by looking at the `chartRef` or the `sourceRef` field.
-- Use the `get_kubernetes_resources` tool to get the HelmRelease source then analyze the source status and events.
-- If the HelmRelease is in a failed state or in progress, it may be due to failures in one of the managed resources found in the inventory.
-- Use the `get_kubernetes_resources` tool to get the managed resources and analyze their status.
-- If the managed resources are in a failed state, analyze their logs using the `get_kubernetes_logs` tool.
-- If any issues were found, create a root cause analysis report for the user.
-- If no issues were found, create a report with the current status of the HelmRelease and its managed resources and container images.
+## Dependency Management Patterns
 
-## Flux Kustomization analysis
+### Infrastructure Dependencies
+Follow the bulletproof architecture pattern:
 
-When troubleshooting a Kustomization, follow these steps:
+```yaml
+# 1. Core infrastructure (no dependencies)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-core
+spec:
+  # No dependsOn - this is foundational
 
-- Use the `get_flux_instance` tool to check the kustomize-controller deployment status and the apiVersion of the Kustomization kind.
-- Use the `get_kubernetes_resources` tool to get the Kustomization, then analyze the spec, the status, inventory and events.
-- Determine which Flux object is managing the Kustomization by looking at the annotations; it can be another Kustomization or a ResourceSet.
-- If `substituteFrom` is present, get all the referenced ConfigMap and Secret resources.
-- Identify the Kustomization source by looking at the `sourceRef` field.
-- Use the `get_kubernetes_resources` tool to get the Kustomization source then analyze the source status and events.
-- If the Kustomization is in a failed state or in progress, it may be due to failures in one of the managed resources found in the inventory.
-- Use the `get_kubernetes_resources` tool to get the managed resources and analyze their status.
-- If the managed resources are in a failed state, analyze their logs using the `get_kubernetes_logs` tool.
-- If any issues were found, create a root cause analysis report for the user.
-- If no issues were found, create a report with the current status of the Kustomization and its managed resources.
+---
+# 2. Storage infrastructure (depends on core)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-storage
+spec:
+  dependsOn:
+    - name: infrastructure-core
 
-## Flux Comparison analysis
+---
+# 3. Applications (depend only on core - bulletproof)
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-production
+spec:
+  dependsOn:
+    - name: infrastructure-core
+    # Note: NOT dependent on storage
+```
 
-When comparing a Flux resource between clusters, follow these steps:
+## Labeling Standards
 
-- Use the `get_kubernetes_contexts` tool to get the cluster contexts.
-- Use the `set_kubernetes_context` tool to switch to a specific cluster.
-- Use the `get_flux_instance` tool to check the Flux Operator status and settings.
-- Use the `get_kubernetes_resources` tool to get the resource you want to compare.
-- If the Flux resource contains `valuesFrom` or `substituteFrom`, get all the referenced ConfigMap and Secret resources.
-- Repeat the above steps for each cluster.
+### Required Labels
+All Flux resources should include these labels:
 
-When comparing resources, look for differences in the `spec`, `status` and `events`, including the referenced ConfigMaps and Secrets.
-The Flux resource `spec` represents the desired state and should be the main focus of the comparison, while the status and events represent the current state in the cluster.
+```yaml
+metadata:
+  labels:
+    app.kubernetes.io/name: component-name
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure|application
+    environment: dev|staging|prod
+    monitoring.k3s-flux.io/enabled: "true"  # For monitoring discovery
+```
+
+### Example with Full Labels
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: longhorn
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+    environment: prod
+    monitoring.k3s-flux.io/enabled: "true"
+```
+
+## Configuration Management Patterns
+
+### Values Management for HelmReleases
+```yaml
+# ✅ GOOD - External values with clear references
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+spec:
+  valuesFrom:
+    - kind: ConfigMap
+      name: longhorn-config
+      valuesKey: values.yaml
+    - kind: Secret
+      name: longhorn-secrets
+      valuesKey: secrets.yaml
+```
+
+### Substitution for Kustomizations
+```yaml
+# ✅ GOOD - Environment-specific substitutions
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+spec:
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: cluster-config
+      - kind: Secret
+        name: cluster-secrets
+```
+
+## Operational Standards
+
+### MCP Tool Usage
+When working with Flux resources, prefer MCP tools:
+
+```bash
+# ✅ GOOD - Use MCP tools for Flux operations
+mcp_flux_get_flux_instance  # Check Flux installation status
+mcp_flux_get_kubernetes_resources  # Get K8s/Flux resources
+mcp_flux_reconcile_flux_kustomization  # Trigger reconciliation
+
+# ✅ ACCEPTABLE - Direct flux CLI when MCP unavailable
+flux check
+flux get all -A
+flux reconcile kustomization <name> -n flux-system
+```
+
+### Resource Identification
+To determine if a Kubernetes resource is Flux-managed:
+- Search the metadata field for `fluxcd` labels
+- Check for `kustomize.toolkit.fluxcd.io/` or `helm.toolkit.fluxcd.io/` annotations
+- Look for owner references to Flux controllers
+
+### Documentation Requirements
+When creating Flux resources:
+- Include comments explaining complex configurations
+- Document dependency relationships
+- Reference related resources in comments
+- Include troubleshooting notes for common issues
+
+## Common Anti-Patterns to Avoid
+
+### ❌ Avoid Direct kubectl apply
+```bash
+# ❌ BAD - Bypasses GitOps
+kubectl apply -f infrastructure/
+
+# ✅ GOOD - Use GitOps workflow
+git commit -m "Update infrastructure"
+git push origin main
+```
+
+### ❌ Avoid Circular Dependencies
+```yaml
+# ❌ BAD - Creates circular dependency
+spec:
+  dependsOn:
+    - name: app-b  # app-b depends on app-a
+```
+
+### ❌ Avoid Storage Dependencies for Apps
+```yaml
+# ❌ BAD - Breaks bulletproof architecture
+spec:
+  dependsOn:
+    - name: infrastructure-storage  # Apps should not depend on storage
+```
+
+## Troubleshooting Integration
+
+For complex troubleshooting scenarios, use the specialized troubleshooting guide:
+- Include `#flux-troubleshooting` in your chat for detailed debugging workflows
+- Use systematic approaches for HelmRelease and Kustomization analysis
+- Follow multi-cluster comparison procedures when needed

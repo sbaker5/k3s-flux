@@ -1,3 +1,7 @@
+---
+inclusion: always
+---
+
 # Project Structure and Organization
 
 ## Repository Layout

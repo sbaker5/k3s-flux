@@ -5,8 +5,17 @@ resources:
   # Storage components - can fail without breaking core
   - ../longhorn/base/
   - disk-discovery-daemonset.yaml
+  - disk-discovery-rbac.yaml
+  - storage-health-validator.yaml
+  - longhorn-node-validator.yaml
   - ../k3s1-node-config/
   # k3s2 node configuration - activated for multi-node setup
   - ../k3s2-node-config/
 # If Longhorn is being a pain in the ass, this fails gracefully
 # Your core infrastructure and containers keep working
+
+# Enhanced storage discovery and validation components:
+# - disk-discovery-daemonset.yaml: Enhanced disk discovery with better error handling
+# - disk-discovery-rbac.yaml: RBAC for disk discovery to access Longhorn APIs
+# - storage-health-validator.yaml: Validates storage prerequisites and health
+# - longhorn-node-validator.yaml: Validates Longhorn node registration and readiness

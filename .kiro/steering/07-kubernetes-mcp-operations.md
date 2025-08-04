@@ -1,6 +1,7 @@
 ---
-title: AI Chat Guidelines for Kubernetes MCP Server
-description: AI system prompt for Kubernetes cluster operations and troubleshooting
+inclusion: always
+title: Kubernetes MCP Operations Guide
+description: Comprehensive guide for Kubernetes cluster operations using MCP tools
 ---
 
 # AI Chat Guidelines for Kubernetes MCP Server

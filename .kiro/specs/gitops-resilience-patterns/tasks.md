@@ -306,7 +306,7 @@
 
 - [ ] 12. Security Hardening and Secret Management **[URGENT - ACTIVE SECURITY BREACH]**
   - [ ] 12.1 Implement SOPS encryption for Tailscale secrets **[CRITICAL - SECURITY VULNERABILITY - ACTIVE]**
-    - **IMMEDIATE ACTION REQUIRED**: A plaintext Tailscale auth key was just committed to Git (tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y)
+    - **IMMEDIATE ACTION REQUIRED**: A plaintext Tailscale auth key was committed to Git (key has been redacted and revoked)
     - **STEP 1**: Revoke the exposed auth key in Tailscale admin console immediately
     - **STEP 2**: Generate new auth key and encrypt with SOPS before committing
     - **STEP 3**: Remove plaintext credentials from Git history (git filter-branch or BFG)

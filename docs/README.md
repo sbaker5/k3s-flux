@@ -9,6 +9,7 @@
 
 ### Setting Up New Components?
 - **[k3s2 Node Onboarding Status](k3s2-onboarding-status.md)** - 🚀 **Ready for Deployment** - Complete status with validation scripts
+- **[k3s2 Onboarding Completion Summary](k3s2-onboarding-completion-summary.md)** - ✅ **Implementation Complete** - Comprehensive completion status and deployment readiness
 - **[Multi-Node Expansion](setup/multi-node-cluster-expansion.md)** - Add k3s2 worker node with pre-onboarding validation
 - **[Longhorn Setup](setup/longhorn-setup.md)** - Distributed storage setup
 - **[Remote Access Setup](setup/tailscale-remote-access-setup.md)** - Tailscale configuration
@@ -17,6 +18,7 @@
 ### Something Broken?
 - **[Monitoring Operations](operations/monitoring-system-cleanup.md)** - Fix monitoring issues
 - **[Flux Recovery](troubleshooting/flux-recovery-guide.md)** - Fix GitOps issues
+- **[MCP Tools Guide](mcp-tools-guide.md)** - Enhanced troubleshooting with specialized Flux workflows
 - **[Emergency CLI](../scripts/emergency-cli.sh)** - Emergency cluster access
 
 ## 📁 All Documentation
@@ -30,10 +32,13 @@ Day-to-day usage documentation for actually using your cluster.
 ### Operations (`operations/`)
 Maintenance, troubleshooting, and keeping things running.
 
+### Troubleshooting (`troubleshooting/`)
+Comprehensive troubleshooting guides including traditional CLI methods, MCP-based workflows, and emergency procedures.
+
 ### Architecture & Reference
 - **[Architecture Overview](architecture-overview.md)** - How everything fits together
 - **[GitOps Patterns](gitops-resilience-patterns.md)** - GitOps best practices
-- **[MCP Tools Guide](mcp-tools-guide.md)** - Enhanced kubectl commands
+- **[MCP Tools Guide](mcp-tools-guide.md)** - Enhanced kubectl commands with comprehensive built-in guidance
 
 ### Development & Advanced
 - **[Security](security/)** - Security configuration and hardening

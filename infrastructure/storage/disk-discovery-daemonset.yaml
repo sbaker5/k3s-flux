@@ -5,6 +5,9 @@ metadata:
   namespace: longhorn-system
   labels:
     app: longhorn-disk-discovery
+    app.kubernetes.io/name: longhorn-disk-discovery
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
 spec:
   selector:
     matchLabels:
@@ -23,61 +26,447 @@ spec:
             - /bin/bash
             - -c
             - |
-              set -e
-              echo "🔍 Installing required tools..."
-              apt-get update -qq && apt-get install -y -qq util-linux parted e2fsprogs
-              echo "🔍 Discovering available disks on $(hostname)..."
+              set -euo pipefail
 
-              # Find unmounted disks > 10GB, excluding system and optical drives
-              AVAILABLE_DISKS=$(lsblk -rno NAME,SIZE,TYPE,MOUNTPOINT,RO | \
-                awk '$3=="disk" && $4=="" && $5=="0" && $2~/G$/ { 
-                  size=substr($2,1,length($2)-1); 
-                  if(size >= 10) {
-                    # Skip if any partition is mounted on /, /boot, /var, etc.
-                    cmd="lsblk -rno MOUNTPOINT /dev/"$1" | grep -E \"^(/|/boot|/var|/usr|/home)$\"";
-                    if(system(cmd) != 0) print "/dev/"$1
-                  }
-                }')
+              # Enhanced logging and error handling
+              LOG_FILE="/var/log/longhorn-disk-discovery.log"
+              STATUS_FILE="/var/log/longhorn-discovery-status.json"
+              NODE_NAME=$(hostname)
 
-              echo "📦 Available disks: $AVAILABLE_DISKS"
+              # Initialize logging
+              exec 1> >(tee -a "$LOG_FILE")
+              exec 2> >(tee -a "$LOG_FILE" >&2)
 
-              # Create disk configs for each available disk
-              for disk in $AVAILABLE_DISKS; do
-                disk_name=$(basename $disk)
-                mount_path="/mnt/longhorn/$disk_name"
+              # Initialize status tracking
+              init_status() {
+                cat > "$STATUS_FILE" << EOF
+              {
+                "node": "$NODE_NAME",
+                "timestamp": "$(date -Iseconds)",
+                "status": "initializing",
+                "prerequisites": {
+                  "iscsi_daemon": false,
+                  "kernel_modules": false,
+                  "tools_installed": false
+                },
+                "disks": {},
+                "errors": [],
+                "warnings": []
+              }
+              EOF
+              }
+
+              # Update status function
+              update_status() {
+                local key="$1"
+                local value="$2"
+                local message="${3:-}"
                 
-                echo "🔧 Preparing $disk -> $mount_path"
+                jq --arg key "$key" --arg value "$value" --arg msg "$message" --arg ts "$(date -Iseconds)" \
+                  '.timestamp = $ts | if $key | contains(".") then 
+                     (($key | split(".")) as $path | setpath($path; ($value | test("true|false") | if . then ($value == "true") else $value end))) 
+                   else 
+                     .[$key] = ($value | test("true|false") | if . then ($value == "true") else $value end) 
+                   end | if $msg != "" then .messages += [{"timestamp": $ts, "level": "info", "message": $msg}] else . end' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+              }
+
+              # Add error to status
+              add_error() {
+                local error_msg="$1"
+                echo "❌ ERROR: $error_msg"
+                jq --arg error "$error_msg" --arg ts "$(date -Iseconds)" \
+                  '.errors += [{"timestamp": $ts, "message": $error}]' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+              }
+
+              # Add warning to status
+              add_warning() {
+                local warning_msg="$1"
+                echo "⚠️  WARNING: $warning_msg"
+                jq --arg warning "$warning_msg" --arg ts "$(date -Iseconds)" \
+                  '.warnings += [{"timestamp": $ts, "message": $warning}]' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+              }
+
+              # Validate storage prerequisites
+              validate_prerequisites() {
+                echo "🔍 Validating storage prerequisites on $NODE_NAME..."
+                update_status "status" "validating_prerequisites"
+                
+                # Install required tools
+                echo "📦 Installing required tools..."
+                if apt-get update -qq && apt-get install -y -qq util-linux parted e2fsprogs jq open-iscsi kmod; then
+                  update_status "prerequisites.tools_installed" "true" "Required tools installed successfully"
+                else
+                  add_error "Failed to install required tools"
+                  return 1
+                fi
+                
+                # Check iSCSI daemon
+                echo "🔍 Checking iSCSI daemon..."
+                if nsenter --target 1 --mount --uts --ipc --net --pid systemctl is-active --quiet iscsid || \
+                   nsenter --target 1 --mount --uts --ipc --net --pid systemctl start iscsid; then
+                  update_status "prerequisites.iscsi_daemon" "true" "iSCSI daemon is running"
+                else
+                  add_error "iSCSI daemon is not running and could not be started"
+                  return 1
+                fi
+                
+                # Check required kernel modules
+                echo "🔍 Checking kernel modules..."
+                local required_modules=("iscsi_tcp" "libiscsi" "scsi_transport_iscsi")
+                local modules_ok=true
+                
+                for module in "${required_modules[@]}"; do
+                  if lsmod | grep -q "^$module" || nsenter --target 1 --mount --uts --ipc --net --pid modprobe "$module" 2>/dev/null; then
+                    echo "✅ Kernel module $module is available"
+                  else
+                    add_warning "Kernel module $module is not available"
+                    modules_ok=false
+                  fi
+                done
+                
+                if [ "$modules_ok" = "true" ]; then
+                  update_status "prerequisites.kernel_modules" "true" "All required kernel modules are available"
+                else
+                  update_status "prerequisites.kernel_modules" "false" "Some kernel modules are missing"
+                  add_warning "Some iSCSI kernel modules are not available - storage may not work properly"
+                fi
+                
+                return 0
+              }
+
+              # Discover and validate disks
+              discover_disks() {
+                echo "🔍 Discovering available disks on $NODE_NAME..."
+                update_status "status" "discovering_disks"
+                
+                # Find unmounted disks > 10GB, excluding system and optical drives
+                local available_disks
+                available_disks=$(lsblk -rno NAME,SIZE,TYPE,MOUNTPOINT,RO | \
+                  awk '$3=="disk" && $4=="" && $5=="0" && $2~/G$/ { 
+                    size=substr($2,1,length($2)-1); 
+                    if(size >= 10) {
+                      # Skip if any partition is mounted on /, /boot, /var, etc.
+                      cmd="lsblk -rno MOUNTPOINT /dev/"$1" | grep -E \"^(/|/boot|/var|/usr|/home)$\"";
+                      if(system(cmd) != 0) print "/dev/"$1
+                    }
+                  }' || true)
+                
+                if [ -z "$available_disks" ]; then
+                  add_warning "No suitable disks found for Longhorn storage"
+                  update_status "status" "no_disks_found"
+                  return 0
+                fi
+                
+                echo "📦 Available disks: $available_disks"
+                
+                # Process each disk
+                for disk in $available_disks; do
+                  process_disk "$disk"
+                done
+                
+                return 0
+              }
+
+              # Process individual disk
+              process_disk() {
+                local disk="$1"
+                local disk_name
+                disk_name=$(basename "$disk")
+                local mount_path="/mnt/longhorn/$disk_name"
+                local partition="${disk}1"
+                
+                echo "🔧 Processing disk $disk -> $mount_path"
+                
+                # Initialize disk status
+                jq --arg disk "$disk_name" \
+                  '.disks[$disk] = {"path": "'$disk'", "mount_path": "'$mount_path'", "status": "processing", "size": "", "filesystem": "", "errors": []}' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                
+                # Get disk size
+                local disk_size
+                disk_size=$(lsblk -rno SIZE "$disk" | head -1 || echo "unknown")
+                jq --arg disk "$disk_name" --arg size "$disk_size" \
+                  '.disks[$disk].size = $size' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
                 
                 # Create partition if needed
-                if ! lsblk ${disk}1 2>/dev/null; then
-                  echo "Creating partition on $disk"
-                  parted $disk mklabel gpt --script || true
-                  parted -a opt $disk mkpart primary 0% 100% --script || true
-                  sleep 2
+                if ! lsblk "$partition" &>/dev/null; then
+                  echo "📝 Creating partition on $disk"
+                  if ! create_partition "$disk" "$disk_name"; then
+                    return 1
+                  fi
                 fi
                 
                 # Create filesystem if needed
-                if ! blkid ${disk}1 2>/dev/null; then
-                  echo "Creating filesystem on ${disk}1"
-                  mkfs.ext4 ${disk}1 -F
+                if ! blkid "$partition" &>/dev/null; then
+                  echo "🗂️  Creating filesystem on $partition"
+                  if ! create_filesystem "$partition" "$disk_name"; then
+                    return 1
+                  fi
                 fi
                 
-                # Create mount point and mount
-                mkdir -p $mount_path
-                if ! mountpoint -q $mount_path; then
-                  mount ${disk}1 $mount_path
-                  echo "${disk}1 $mount_path ext4 defaults 0 0" >> /etc/fstab
+                # Mount the disk
+                if ! mount_disk "$partition" "$mount_path" "$disk_name"; then
+                  return 1
+                fi
+                
+                # Verify disk health
+                if ! verify_disk_health "$mount_path" "$disk_name"; then
+                  return 1
                 fi
                 
                 # Create Longhorn disk config
-                echo '{}' > $mount_path/longhorn-disk.cfg
+                if ! create_longhorn_config "$mount_path" "$disk_name"; then
+                  return 1
+                fi
+                
+                # Update final status
+                jq --arg disk "$disk_name" \
+                  '.disks[$disk].status = "ready"' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
                 
                 echo "✅ Disk $disk ready at $mount_path"
-              done
+                return 0
+              }
 
-              echo "🎉 Disk discovery complete on $(hostname)"
-              # Keep container running
-              sleep infinity
+              # Create partition with error handling
+              create_partition() {
+                local disk="$1"
+                local disk_name="$2"
+                
+                if ! parted "$disk" mklabel gpt --script 2>/dev/null; then
+                  add_error "Failed to create GPT label on $disk"
+                  jq --arg disk "$disk_name" \
+                    '.disks[$disk].errors += ["Failed to create GPT label"]' \
+                    "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                  return 1
+                fi
+                
+                if ! parted -a opt "$disk" mkpart primary 0% 100% --script 2>/dev/null; then
+                  add_error "Failed to create partition on $disk"
+                  jq --arg disk "$disk_name" \
+                    '.disks[$disk].errors += ["Failed to create partition"]' \
+                    "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                  return 1
+                fi
+                
+                # Wait for partition to be recognized
+                local attempts=0
+                while [ $attempts -lt 10 ] && ! lsblk "${disk}1" &>/dev/null; do
+                  sleep 1
+                  attempts=$((attempts + 1))
+                done
+                
+                if ! lsblk "${disk}1" &>/dev/null; then
+                  add_error "Partition ${disk}1 not recognized after creation"
+                  return 1
+                fi
+                
+                return 0
+              }
+
+              # Create filesystem with error handling
+              create_filesystem() {
+                local partition="$1"
+                local disk_name="$2"
+                
+                if ! mkfs.ext4 "$partition" -F 2>/dev/null; then
+                  add_error "Failed to create ext4 filesystem on $partition"
+                  jq --arg disk "$disk_name" \
+                    '.disks[$disk].errors += ["Failed to create filesystem"]' \
+                    "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                  return 1
+                fi
+                
+                # Update filesystem info
+                jq --arg disk "$disk_name" \
+                  '.disks[$disk].filesystem = "ext4"' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                
+                return 0
+              }
+
+              # Mount disk with error handling
+              mount_disk() {
+                local partition="$1"
+                local mount_path="$2"
+                local disk_name="$3"
+                
+                # Create mount point
+                if ! mkdir -p "$mount_path"; then
+                  add_error "Failed to create mount point $mount_path"
+                  return 1
+                fi
+                
+                # Mount if not already mounted
+                if ! mountpoint -q "$mount_path"; then
+                  if ! mount "$partition" "$mount_path"; then
+                    add_error "Failed to mount $partition to $mount_path"
+                    jq --arg disk "$disk_name" \
+                      '.disks[$disk].errors += ["Failed to mount disk"]' \
+                      "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                    return 1
+                  fi
+                  
+                  # Add to fstab for persistence
+                  if ! grep -q "$partition" /etc/fstab; then
+                    echo "$partition $mount_path ext4 defaults 0 0" >> /etc/fstab
+                  fi
+                fi
+                
+                return 0
+              }
+
+              # Verify disk health after preparation
+              verify_disk_health() {
+                local mount_path="$1"
+                local disk_name="$2"
+                
+                echo "🏥 Verifying disk health for $mount_path"
+                
+                # Test write/read operations
+                local test_file="$mount_path/.longhorn-health-test"
+                local test_data="longhorn-disk-health-test-$(date +%s)"
+                
+                if ! echo "$test_data" > "$test_file" 2>/dev/null; then
+                  add_error "Failed to write test file to $mount_path"
+                  jq --arg disk "$disk_name" \
+                    '.disks[$disk].errors += ["Disk write test failed"]' \
+                    "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                  return 1
+                fi
+                
+                if ! read_data=$(cat "$test_file" 2>/dev/null) || [ "$read_data" != "$test_data" ]; then
+                  add_error "Failed to read test file from $mount_path"
+                  jq --arg disk "$disk_name" \
+                    '.disks[$disk].errors += ["Disk read test failed"]' \
+                    "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                  return 1
+                fi
+                
+                # Clean up test file
+                rm -f "$test_file"
+                
+                # Check available space
+                local available_space
+                available_space=$(df -BG "$mount_path" | awk 'NR==2 {print $4}' | sed 's/G//')
+                
+                if [ "$available_space" -lt 1 ]; then
+                  add_warning "Disk $mount_path has less than 1GB available space"
+                fi
+                
+                jq --arg disk "$disk_name" --arg space "${available_space}G" \
+                  '.disks[$disk].available_space = $space' \
+                  "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+                
+                echo "✅ Disk health verification passed for $mount_path"
+                return 0
+              }
+
+              # Create Longhorn disk configuration
+              create_longhorn_config() {
+                local mount_path="$1"
+                local disk_name="$2"
+                
+                local config_file="$mount_path/longhorn-disk.cfg"
+                
+                # Create enhanced Longhorn disk config with metadata
+                cat > "$config_file" << EOF
+              {
+                "created": "$(date -Iseconds)",
+                "node": "$NODE_NAME",
+                "disk": "$disk_name",
+                "mount_path": "$mount_path",
+                "discovery_version": "enhanced-v1.0"
+              }
+              EOF
+                
+                if [ ! -f "$config_file" ]; then
+                  add_error "Failed to create Longhorn config file at $config_file"
+                  return 1
+                fi
+                
+                echo "📝 Created Longhorn config at $config_file"
+                return 0
+              }
+
+              # Validate Longhorn node registration
+              validate_longhorn_registration() {
+                echo "🔍 Validating Longhorn node registration..."
+                update_status "status" "validating_longhorn_registration"
+                
+                # Wait for Longhorn to be available
+                local attempts=0
+                local max_attempts=30
+                
+                while [ $attempts -lt $max_attempts ]; do
+                  if kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system &>/dev/null; then
+                    echo "✅ Longhorn node $NODE_NAME is registered"
+                    update_status "longhorn_registered" "true" "Node successfully registered with Longhorn"
+                    
+                    # Get node status
+                    local node_status
+                    node_status=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+                    
+                    if [ "$node_status" = "True" ]; then
+                      echo "✅ Longhorn node $NODE_NAME is ready"
+                      update_status "longhorn_ready" "true" "Node is ready in Longhorn"
+                    else
+                      add_warning "Longhorn node $NODE_NAME is registered but not ready (status: $node_status)"
+                      update_status "longhorn_ready" "false" "Node registered but not ready"
+                    fi
+                    
+                    return 0
+                  fi
+                  
+                  echo "⏳ Waiting for Longhorn node registration... (attempt $((attempts + 1))/$max_attempts)"
+                  sleep 10
+                  attempts=$((attempts + 1))
+                done
+                
+                add_warning "Longhorn node registration validation timed out"
+                update_status "longhorn_registered" "false" "Node registration validation timed out"
+                return 1
+              }
+
+              # Main execution
+              main() {
+                echo "🚀 Starting enhanced Longhorn disk discovery on $NODE_NAME"
+                init_status
+                
+                # Validate prerequisites
+                if ! validate_prerequisites; then
+                  update_status "status" "failed"
+                  add_error "Prerequisites validation failed"
+                  exit 1
+                fi
+                
+                # Discover and prepare disks
+                if ! discover_disks; then
+                  update_status "status" "failed"
+                  add_error "Disk discovery failed"
+                  exit 1
+                fi
+                
+                # Validate Longhorn registration (optional - may not be available immediately)
+                validate_longhorn_registration || true
+                
+                # Final status update
+                update_status "status" "completed"
+                echo "🎉 Enhanced disk discovery completed successfully on $NODE_NAME"
+                
+                # Keep container running for monitoring
+                while true; do
+                  sleep 300
+                  echo "📊 Disk discovery daemon running on $NODE_NAME ($(date))"
+                done
+              }
+
+              # Run main function
+              main
           securityContext:
             privileged: true
           volumeMounts:
@@ -90,6 +479,25 @@ spec:
               mountPath: /proc
             - name: sys
               mountPath: /sys
+            - name: host-var-log
+              mountPath: /var/log
+            - name: host-etc-fstab
+              mountPath: /etc/fstab
+            - name: host-mnt
+              mountPath: /mnt
+              mountPropagation: Bidirectional
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
       volumes:
         - name: host-root
           hostPath:
@@ -103,7 +511,17 @@ spec:
         - name: sys
           hostPath:
             path: /sys
+        - name: host-var-log
+          hostPath:
+            path: /var/log
+        - name: host-etc-fstab
+          hostPath:
+            path: /etc/fstab
+        - name: host-mnt
+          hostPath:
+            path: /mnt
       tolerations:
         - operator: Exists
       nodeSelector:
         storage: longhorn
+      serviceAccountName: longhorn-disk-discovery

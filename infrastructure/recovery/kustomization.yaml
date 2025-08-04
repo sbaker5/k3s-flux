@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: flux-recovery
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - namespace.yaml
+  - recovery-patterns-config.yaml
+  - error-pattern-detector.yaml
+  - dependency-analyzer-code.yaml
+  - dependency-analyzer-deployment.yaml
+  - recovery-orchestration-controller-code.yaml
+  - recovery-orchestration-deployment.yaml
+
+# Add common labels to all resources
+commonLabels:
+  app.kubernetes.io/part-of: flux-recovery-system
+  app.kubernetes.io/managed-by: kustomize
+
+# Add common annotations
+commonAnnotations:
+  config.k3s-flux.io/component: recovery-system
+  config.k3s-flux.io/version: v1.0.0

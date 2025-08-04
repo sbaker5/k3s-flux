@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flux-recovery
+  labels:
+    name: flux-recovery
+    app.kubernetes.io/name: flux-recovery
+    app.kubernetes.io/part-of: flux-recovery-system

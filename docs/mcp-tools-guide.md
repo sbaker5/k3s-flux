@@ -4,6 +4,8 @@
 
 Model Context Protocol (MCP) tools provide enhanced interaction capabilities for Flux and Kubernetes operations. These tools offer more comprehensive diagnostics, better error handling, and integrated documentation lookup compared to standard CLI tools.
 
+**Enhanced AI Guidance**: Comprehensive Kubernetes MCP operations guidance is now automatically available in all AI interactions, providing systematic troubleshooting workflows, best practices, and resource management patterns without manual activation.
+
 ## Available MCP Tools
 
 ### Flux MCP Tools (`mcp_flux_*`)
@@ -226,11 +228,12 @@ kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address
 ## Best Practices
 
 ### When to Use MCP Tools
-- **Troubleshooting**: Use MCP tools for comprehensive diagnostics
-- **Complex Operations**: Use MCP tools for multi-step operations
-- **Documentation Lookup**: Use MCP search for quick reference
-- **Resource Management**: Use MCP tools for enhanced filtering and selection
-- **Monitoring Operations**: Use MCP tools for monitoring system health checks
+- **Troubleshooting**: Use MCP tools for comprehensive diagnostics with automatic guidance
+- **Complex Operations**: Use MCP tools for multi-step operations with systematic workflows
+- **Documentation Lookup**: Use MCP search for quick reference with integrated help
+- **Resource Management**: Use MCP tools for enhanced filtering and selection with best practices
+- **Monitoring Operations**: Use MCP tools for monitoring system health checks with automated analysis
+- **Interactive Operations**: Benefit from always-available comprehensive Kubernetes operations guidance
 
 ### When to Use Traditional CLI
 - **Simple Operations**: Basic kubectl commands for quick checks
@@ -252,14 +255,25 @@ kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address
 - Document MCP tool usage in runbooks and procedures
 - Maintain remote access procedures for emergency situations
 
-## Troubleshooting MCP Tools
+## Advanced Troubleshooting with MCP Tools
 
-### Common Issues
+### Systematic Flux Troubleshooting
+
+For comprehensive Flux troubleshooting workflows, use the specialized troubleshooting procedures available through the `#flux-troubleshooting` context. These procedures provide systematic approaches for:
+
+- **HelmRelease Troubleshooting**: Step-by-step analysis of failed HelmReleases including controller status, resource validation, source checking, and managed resource analysis
+- **Kustomization Troubleshooting**: Comprehensive Kustomization debugging including source validation, dependency analysis, and resource status checking  
+- **Multi-Cluster Comparison**: Comparing Flux resources across different clusters to identify configuration drift
+- **Resource Identification**: Determining if resources are Flux-managed and understanding their relationships
+
+### Troubleshooting MCP Tools
+
+#### Common Issues
 1. **MCP Server Not Available**: Check MCP configuration and server status
 2. **Authentication Issues**: Verify Kubernetes context and credentials
 3. **Resource Not Found**: Check resource names, namespaces, and API versions
 
-### Verification Commands
+#### Verification Commands
 ```bash
 # Check MCP server status (if available through IDE)
 # Verify Kubernetes context
@@ -272,9 +286,16 @@ mcp_flux_get_flux_instance
 mcp_flux_get_kubernetes_resources --apiVersion=v1 --kind=Namespace
 ```
 
+#### When MCP Tools Fail
+If MCP tools are unavailable, use the traditional troubleshooting approaches documented in the [Flux Recovery Guide](troubleshooting/flux-recovery-guide.md), including:
+- Direct kubectl commands for resource inspection
+- Tailscale remote access for emergency situations
+- Manual log analysis and reconciliation procedures
+
 ## See Also
 
 - [Flux CD Documentation](https://fluxcd.io/docs/)
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
-- [Troubleshooting Guide](troubleshooting/flux-recovery-guide.md)
+- [Flux Recovery Guide](troubleshooting/flux-recovery-guide.md) - Traditional troubleshooting procedures
 - [GitOps Resilience Patterns](gitops-resilience-patterns.md)
+- [Flux Troubleshooting Workflows](../.kiro/steering/04-flux-troubleshooting.md) - Specialized MCP-based troubleshooting procedures

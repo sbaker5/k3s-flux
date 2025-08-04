@@ -105,28 +105,53 @@ kubectl scale deployment example-app --replicas=4
 kubectl get pods -o wide
 ```
 
-## Next Steps (Remaining Tasks)
+## Remaining Tasks
 
-The following tasks from the k3s1-node-onboarding spec are ready for implementation:
+The following tasks from the k3s1-node-onboarding spec are the final items for complete implementation:
 
-### ✅ Task 3: Pre-Onboarding Validation Scripts
-- **Cluster Readiness Validation**: `scripts/cluster-readiness-validation.sh` - Validates k3s1 control plane health and API server responsiveness
-- **Network Connectivity Verification**: `scripts/network-connectivity-verification.sh` - Verifies cluster network configuration and Flannel CNI setup
-- **Storage System Health Check**: `scripts/storage-health-check.sh` - Validates Longhorn system health and storage prerequisites
-- **Monitoring System Validation**: `scripts/monitoring-validation.sh` - Validates Prometheus and monitoring system readiness
-- **Comprehensive Pre-Onboarding Script**: `scripts/k3s2-pre-onboarding-validation.sh` - Orchestrates all validation modules with reporting
+### 🔄 Task 7: Security and RBAC Validation for Multi-Node Setup
+- **SOPS Secret Decryption**: Verify SOPS secret decryption works on k3s2
+- **RBAC Policy Validation**: Validate RBAC policies apply correctly to new node
+- **Tailscale VPN Connectivity**: Test Tailscale VPN connectivity to k3s2
+- **Security Posture Validation**: Implement security posture validation scripts
 
-### 🔄 Task 4: k3s2 Node Monitoring Integration
-- Update monitoring configurations for k3s2 node metrics
-- Enhance Prometheus ServiceMonitor and PodMonitor
-- Create k3s2-specific Grafana dashboard panels
-- Implement alerting rules for k3s2 node health
+### 🔄 Task 9: Rollback and Recovery Procedures
+- **Node Drain and Removal**: Create node drain and removal scripts for emergency situations
+- **Graceful Node Shutdown**: Implement graceful node shutdown procedures
+- **Cluster State Restoration**: Build cluster state restoration utilities
+- **Manual Recovery Documentation**: Create documentation for manual recovery procedures
 
-### 🔄 Task 5: Storage Discovery Enhancement
-- Improve disk discovery DaemonSet error handling
-- Add validation for storage prerequisites
-- Implement storage health verification
-- Create automated Longhorn node registration validation
+### ✅ Task 4: k3s2 Node Monitoring Integration
+- **Enhanced ServiceMonitor and PodMonitor**: Multi-node monitoring configurations deployed in `infrastructure/monitoring/core/multi-node-servicemonitor.yaml`
+- **k3s2-Specific Grafana Dashboard**: Dedicated dashboard with resource gauges, storage status, and pod distribution monitoring
+- **Multi-Node Cluster Overview**: Comprehensive cluster-wide dashboard for both k3s1 and k3s2
+- **Alerting Rules**: Complete set of k3s2-specific alerts for node health, storage, and network monitoring
+- **Prometheus Configuration**: Enhanced scrape configurations with proper node labeling and role identification
+
+### ✅ Task 5: Storage Discovery Enhancement
+- **Enhanced Disk Discovery**: Improved disk discovery DaemonSet with comprehensive error handling and retry mechanisms
+- **Storage Prerequisites Validation**: Complete validation for storage prerequisites including iSCSI and kernel modules
+- **Storage Health Verification**: Automated storage health verification after disk preparation
+- **Longhorn Node Registration**: Automated Longhorn node registration validation with comprehensive testing
+
+### ✅ Task 6: Comprehensive Onboarding Validation Suite
+- **Real-time Node Join Monitoring**: Scripts for monitoring node join process with detailed status reporting
+- **Storage Integration Validation**: Tools for validating storage integration and Longhorn node registration
+- **Network Connectivity Verification**: Comprehensive network connectivity validation utilities
+- **GitOps Reconciliation Monitoring**: Scripts for monitoring Flux reconciliation during onboarding
+- **Validation Script Best Practices**: Applied comprehensive best practices from validation script development guide
+
+### ✅ Task 8: Post-Onboarding Health Verification System
+- **Comprehensive Cluster Health Check**: Complete cluster health validation script with detailed reporting
+- **Storage Redundancy Validation**: Tools for validating storage redundancy and replica distribution
+- **Application Deployment Verification**: Scripts for verifying application deployment across nodes
+- **Performance and Load Testing**: Utilities for testing performance and load distribution
+
+### ✅ Task 10: Onboarding Orchestration Script
+- **Master Onboarding Script**: Comprehensive orchestration script coordinating all onboarding steps
+- **Progress Tracking**: Real-time progress tracking and status reporting with HTTP endpoint
+- **Rollback Capabilities**: Built-in rollback capabilities for failed onboarding scenarios
+- **Comprehensive Logging**: Detailed logging and troubleshooting output with timestamped entries
 
 ## Testing and Validation
 

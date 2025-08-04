@@ -38,7 +38,7 @@ This guide provides procedures for responding to security incidents in the k3s G
 Based on the GitOps spec analysis, the following critical issues exist:
 
 #### 1. Plaintext Tailscale Auth Key in Git
-- **Issue**: `tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y`
+- **Issue**: `[REDACTED-EXPOSED-KEY]`
 - **Location**: `infrastructure/tailscale/base/secret.yaml`
 - **Risk**: Network access compromise, unauthorized cluster access
 - **Status**: **IMMEDIATE ACTION REQUIRED**
@@ -80,7 +80,7 @@ scan_for_plaintext_secrets() {
     fi
     
     # Check for specific known compromised keys
-    if grep -r "tskey-auth-kLVPjnrkY521CNTRL" . 2>/dev/null; then
+    if grep -r "tskey-auth-.*" --include="*.yaml" --include="*.yml" . 2>/dev/null | grep -v ".sops." | grep -v "PLACEHOLDER\|REDACTED"; then
         log "CRITICAL: Known compromised Tailscale key found"
         return 1
     fi

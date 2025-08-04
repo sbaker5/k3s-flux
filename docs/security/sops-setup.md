@@ -108,7 +108,7 @@ spec:
 
 1. **First, revoke the exposed key**:
    - Go to https://login.tailscale.com/admin/settings/keys
-   - Find and revoke the key: `tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y`
+   - Find and revoke the exposed key (check GitHub security alert for the key ID)
 
 2. **Generate a new auth key**:
    - Create a new reusable, non-ephemeral key with tag:k8s

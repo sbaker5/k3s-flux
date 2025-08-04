@@ -1,0 +1,290 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: k3s2-node-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: k3s2-node-alerts
+    app.kubernetes.io/instance: k3s2-node-alerts
+    app.kubernetes.io/part-of: k3s-flux
+    monitoring.k3s-flux.io/component: k3s2-node-alerts
+spec:
+  groups:
+    - name: k3s2.node.health
+      interval: 30s
+      rules:
+        # Alert when k3s2 node is down
+        - alert: K3s2NodeDown
+          expr: |
+            up{instance=~".*k3s2.*", job="node-exporter"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            component: k3s2-node
+            pattern: node-down
+            node: k3s2
+          annotations:
+            summary: "k3s2 node is down"
+            description: |
+              The k3s2 worker node has been unreachable for over 1 minute.
+
+              This is a critical issue that affects:
+              - Workload distribution across the cluster
+              - Storage redundancy (Longhorn replicas)
+              - Overall cluster capacity
+
+              Immediate actions required:
+              1. Check node physical/VM status
+              2. Verify network connectivity to k3s2
+              3. Check k3s agent service: systemctl status k3s-agent
+              4. Review node logs: journalctl -u k3s-agent -f
+              5. Verify cluster join token and configuration
+
+        # Alert when k3s2 node has high CPU usage
+        - alert: K3s2NodeHighCPU
+          expr: |
+            100 - (avg(rate(node_cpu_seconds_total{mode="idle", instance=~".*k3s2.*"}[5m])) * 100) > 80
+          for: 5m
+          labels:
+            severity: warning
+            component: k3s2-node
+            pattern: high-cpu
+            node: k3s2
+          annotations:
+            summary: "k3s2 node has high CPU usage"
+            description: |
+              k3s2 node CPU usage is {{ $value }}% for over 5 minutes.
+
+              High CPU usage may indicate:
+              - Resource-intensive workloads scheduled on k3s2
+              - System processes consuming excessive CPU
+              - Potential need for workload redistribution
+
+              Investigation steps:
+              1. Check top processes: kubectl exec -it <debug-pod> -- top
+              2. Review pod resource requests/limits on k3s2
+              3. Check for CPU-intensive system processes
+              4. Consider scaling or redistributing workloads
+
+        # Alert when k3s2 node has high memory usage
+        - alert: K3s2NodeHighMemory
+          expr: |
+            100 * (1 - ((node_memory_MemAvailable_bytes{instance=~".*k3s2.*"} or node_memory_Buffers_bytes{instance=~".*k3s2.*"} + node_memory_Cached_bytes{instance=~".*k3s2.*"} + node_memory_MemFree_bytes{instance=~".*k3s2.*"}) / node_memory_MemTotal_bytes{instance=~".*k3s2.*"})) > 85
+          for: 5m
+          labels:
+            severity: warning
+            component: k3s2-node
+            pattern: high-memory
+            node: k3s2
+          annotations:
+            summary: "k3s2 node has high memory usage"
+            description: |
+              k3s2 node memory usage is {{ $value }}% for over 5 minutes.
+
+              High memory usage may cause:
+              - Pod evictions and scheduling issues
+              - Performance degradation
+              - Potential out-of-memory conditions
+
+              Investigation steps:
+              1. Check memory usage by pods: kubectl top pods --all-namespaces --sort-by=memory
+              2. Review pod memory requests/limits
+              3. Check for memory leaks in applications
+              4. Consider adding memory or redistributing workloads
+
+        # Alert when k3s2 node has high disk usage
+        - alert: K3s2NodeHighDiskUsage
+          expr: |
+            100 - ((node_filesystem_avail_bytes{instance=~".*k3s2.*", mountpoint="/"} * 100) / node_filesystem_size_bytes{instance=~".*k3s2.*", mountpoint="/"}) > 85
+          for: 5m
+          labels:
+            severity: warning
+            component: k3s2-node
+            pattern: high-disk
+            node: k3s2
+          annotations:
+            summary: "k3s2 node has high disk usage"
+            description: |
+              k3s2 node root filesystem usage is {{ $value }}% for over 5 minutes.
+
+              High disk usage can cause:
+              - Pod scheduling failures
+              - Container image pull failures
+              - System instability
+
+              Investigation steps:
+              1. Check disk usage: df -h
+              2. Clean up unused container images: crictl rmi --prune
+              3. Check for large log files: find /var/log -size +100M
+              4. Review pod storage usage and cleanup policies
+
+        # Alert when k3s2 Longhorn storage is unavailable
+        - alert: K3s2LonghornStorageDown
+          expr: |
+            longhorn_node_status{node="k3s2", condition="Ready"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            component: k3s2-storage
+            pattern: storage-down
+            node: k3s2
+          annotations:
+            summary: "k3s2 Longhorn storage is unavailable"
+            description: |
+              Longhorn storage on k3s2 node has been unavailable for over 2 minutes.
+
+              This affects:
+              - Storage redundancy across the cluster
+              - Volume replica distribution
+              - New volume provisioning capabilities
+
+              Critical actions:
+              1. Check Longhorn manager pod on k3s2: kubectl get pods -n longhorn-system -o wide | grep k3s2
+              2. Verify disk mount: ls -la /mnt/longhorn/sdb1
+              3. Check iSCSI daemon: systemctl status iscsid
+              4. Review Longhorn node status in UI
+              5. Check for disk or filesystem issues
+
+        # Alert when k3s2 has too many pods
+        - alert: K3s2NodeTooManyPods
+          expr: |
+            count(kube_pod_info{node="k3s2"}) > 100
+          for: 5m
+          labels:
+            severity: warning
+            component: k3s2-node
+            pattern: too-many-pods
+            node: k3s2
+          annotations:
+            summary: "k3s2 node has too many pods"
+            description: |
+              k3s2 node is running {{ $value }} pods, which may impact performance.
+
+              High pod count can cause:
+              - Resource contention
+              - Slower pod startup times
+              - Network performance issues
+
+              Actions to consider:
+              1. Review pod distribution across nodes
+              2. Check for unnecessary or stuck pods
+              3. Implement pod anti-affinity rules
+              4. Consider node capacity planning
+
+        # Alert when k3s2 node is not ready in Kubernetes
+        - alert: K3s2NodeNotReady
+          expr: |
+            kube_node_status_condition{node="k3s2", condition="Ready", status="false"} == 1
+          for: 2m
+          labels:
+            severity: critical
+            component: k3s2-node
+            pattern: node-not-ready
+            node: k3s2
+          annotations:
+            summary: "k3s2 node is not ready in Kubernetes"
+            description: |
+              k3s2 node has been in NotReady state for over 2 minutes.
+
+              This prevents:
+              - New pod scheduling on k3s2
+              - Proper cluster operations
+              - Load balancing across nodes
+
+              Troubleshooting steps:
+              1. Check node conditions: kubectl describe node k3s2
+              2. Verify kubelet status: systemctl status k3s-agent
+              3. Check network connectivity and CNI
+              4. Review kubelet logs: journalctl -u k3s-agent -f
+              5. Check for resource pressure conditions
+
+        # Alert for k3s2 network connectivity issues
+        - alert: K3s2NetworkConnectivityIssue
+          expr: |
+            rate(node_network_receive_errs_total{instance=~".*k3s2.*"}[5m]) > 0.01
+            or
+            rate(node_network_transmit_errs_total{instance=~".*k3s2.*"}[5m]) > 0.01
+          for: 3m
+          labels:
+            severity: warning
+            component: k3s2-network
+            pattern: network-errors
+            node: k3s2
+          annotations:
+            summary: "k3s2 node has network connectivity issues"
+            description: |
+              k3s2 node is experiencing network errors at a rate of {{ $value }} errors/second.
+
+              Network issues can affect:
+              - Pod-to-pod communication
+              - Service discovery and load balancing
+              - Storage replication (Longhorn)
+
+              Investigation steps:
+              1. Check network interface status: ip link show
+              2. Review network error counters: cat /proc/net/dev
+              3. Test connectivity to other nodes
+              4. Check Flannel VXLAN interface
+              5. Verify network hardware/virtualization layer
+
+    - name: k3s2.workload.distribution
+      interval: 60s
+      rules:
+        # Alert when workload distribution is uneven
+        - alert: K3s2WorkloadImbalance
+          expr: |
+            abs(
+              count(kube_pod_info{node="k3s2"}) -
+              count(kube_pod_info{node="k3s1"})
+            ) > 10
+          for: 10m
+          labels:
+            severity: info
+            component: k3s2-workload
+            pattern: workload-imbalance
+            node: k3s2
+          annotations:
+            summary: "Workload distribution imbalance detected"
+            description: |
+              There is a significant imbalance in pod distribution between k3s1 and k3s2.
+
+              Current distribution:
+              - k3s1: {{ with query "count(kube_pod_info{node=\"k3s1\"})" }}{{ . | first | value }}{{ end }} pods
+              - k3s2: {{ with query "count(kube_pod_info{node=\"k3s2\"})" }}{{ . | first | value }}{{ end }} pods
+
+              Consider:
+              1. Reviewing pod scheduling policies
+              2. Implementing pod anti-affinity rules
+              3. Checking for node taints or cordons
+              4. Balancing resource requests across nodes
+
+        # Recording rule for k3s2 node health score
+        - record: k3s2:node_health_score
+          expr: |
+            (
+              (up{instance=~".*k3s2.*", job="node-exporter"} * 0.3) +
+              ((100 - (100 - (avg(rate(node_cpu_seconds_total{mode="idle", instance=~".*k3s2.*"}[5m])) * 100)) < 80) * 0.2) +
+              ((100 * (1 - ((node_memory_MemAvailable_bytes{instance=~".*k3s2.*"} or node_memory_Buffers_bytes{instance=~".*k3s2.*"} + node_memory_Cached_bytes{instance=~".*k3s2.*"} + node_memory_MemFree_bytes{instance=~".*k3s2.*"}) / node_memory_MemTotal_bytes{instance=~".*k3s2.*"})) < 85) * 0.2) +
+              ((100 - ((node_filesystem_avail_bytes{instance=~".*k3s2.*", mountpoint="/"} * 100) / node_filesystem_size_bytes{instance=~".*k3s2.*", mountpoint="/"}) < 85) * 0.15) +
+              (longhorn_node_status{node="k3s2", condition="Ready"} * 0.15)
+            )
+
+        # Recording rule for k3s2 resource utilization
+        - record: k3s2:resource_utilization_percent
+          expr: |
+            (
+              (100 - (avg(rate(node_cpu_seconds_total{mode="idle", instance=~".*k3s2.*"}[5m])) * 100)) * 0.4 +
+              (100 * (1 - ((node_memory_MemAvailable_bytes{instance=~".*k3s2.*"} or node_memory_Buffers_bytes{instance=~".*k3s2.*"} + node_memory_Cached_bytes{instance=~".*k3s2.*"} + node_memory_MemFree_bytes{instance=~".*k3s2.*"}) / node_memory_MemTotal_bytes{instance=~".*k3s2.*"}))) * 0.4 +
+              (100 - ((node_filesystem_avail_bytes{instance=~".*k3s2.*", mountpoint="/"} * 100) / node_filesystem_size_bytes{instance=~".*k3s2.*", mountpoint="/"})) * 0.2
+            )
+
+        # Recording rule for k3s2 pod count
+        - record: k3s2:pod_count
+          expr: |
+            count(kube_pod_info{node="k3s2"})
+
+        # Recording rule for k3s2 storage utilization
+        - record: k3s2:storage_utilization_percent
+          expr: |
+            (longhorn_node_storage_usage_bytes{node="k3s2"} / longhorn_node_storage_capacity_bytes{node="k3s2"}) * 100

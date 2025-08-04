@@ -1,0 +1,376 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: storage-health-validator
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: storage-health-validator
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+data:
+  validate-storage-health.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    # Storage Health Validation Script
+    # This script validates storage prerequisites and health for Longhorn
+
+    LOG_FILE="/var/log/storage-health-validation.log"
+    STATUS_FILE="/var/log/storage-health-status.json"
+    NODE_NAME="${NODE_NAME:-$(hostname)}"
+
+    # Initialize logging
+    exec 1> >(tee -a "$LOG_FILE")
+    exec 2> >(tee -a "$LOG_FILE" >&2)
+
+    # Initialize status tracking
+    init_status() {
+      cat > "$STATUS_FILE" << EOF
+    {
+      "node": "$NODE_NAME",
+      "timestamp": "$(date -Iseconds)",
+      "validation_type": "storage_health",
+      "status": "running",
+      "checks": {
+        "iscsi_daemon": {"status": "pending", "message": ""},
+        "kernel_modules": {"status": "pending", "message": ""},
+        "disk_mounts": {"status": "pending", "message": ""},
+        "longhorn_connectivity": {"status": "pending", "message": ""},
+        "storage_performance": {"status": "pending", "message": ""}
+      },
+      "errors": [],
+      "warnings": []
+    }
+    EOF
+    }
+
+    # Update check status
+    update_check_status() {
+      local check="$1"
+      local status="$2"
+      local message="$3"
+      
+      jq --arg check "$check" --arg status "$status" --arg message "$message" --arg ts "$(date -Iseconds)" \
+        '.timestamp = $ts | .checks[$check].status = $status | .checks[$check].message = $message' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Add error
+    add_error() {
+      local error_msg="$1"
+      echo "❌ ERROR: $error_msg"
+      jq --arg error "$error_msg" --arg ts "$(date -Iseconds)" \
+        '.errors += [{"timestamp": $ts, "message": $error}]' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Add warning
+    add_warning() {
+      local warning_msg="$1"
+      echo "⚠️  WARNING: $warning_msg"
+      jq --arg warning "$warning_msg" --arg ts "$(date -Iseconds)" \
+        '.warnings += [{"timestamp": $ts, "message": $warning}]' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+    }
+
+    # Validate iSCSI daemon
+    validate_iscsi_daemon() {
+      echo "🔍 Validating iSCSI daemon..."
+      
+      if systemctl is-active --quiet iscsid; then
+        update_check_status "iscsi_daemon" "passed" "iSCSI daemon is running"
+        return 0
+      elif systemctl start iscsid 2>/dev/null && systemctl is-active --quiet iscsid; then
+        update_check_status "iscsi_daemon" "passed" "iSCSI daemon started successfully"
+        return 0
+      else
+        update_check_status "iscsi_daemon" "failed" "iSCSI daemon is not running and could not be started"
+        add_error "iSCSI daemon validation failed"
+        return 1
+      fi
+    }
+
+    # Validate kernel modules
+    validate_kernel_modules() {
+      echo "🔍 Validating kernel modules..."
+      
+      local required_modules=("iscsi_tcp" "libiscsi" "scsi_transport_iscsi")
+      local missing_modules=()
+      local loaded_modules=()
+      
+      for module in "${required_modules[@]}"; do
+        if lsmod | grep -q "^$module" || modprobe "$module" 2>/dev/null; then
+          loaded_modules+=("$module")
+        else
+          missing_modules+=("$module")
+        fi
+      done
+      
+      if [ ${#missing_modules[@]} -eq 0 ]; then
+        update_check_status "kernel_modules" "passed" "All required kernel modules are loaded: ${loaded_modules[*]}"
+        return 0
+      else
+        update_check_status "kernel_modules" "warning" "Missing modules: ${missing_modules[*]}, loaded: ${loaded_modules[*]}"
+        add_warning "Some iSCSI kernel modules are missing: ${missing_modules[*]}"
+        return 1
+      fi
+    }
+
+    # Validate disk mounts
+    validate_disk_mounts() {
+      echo "🔍 Validating Longhorn disk mounts..."
+      
+      local longhorn_mounts
+      longhorn_mounts=$(mount | grep "/mnt/longhorn" | wc -l)
+      
+      if [ "$longhorn_mounts" -eq 0 ]; then
+        update_check_status "disk_mounts" "warning" "No Longhorn disk mounts found"
+        add_warning "No Longhorn disk mounts found - storage may not be configured"
+        return 1
+      fi
+      
+      local mount_details=()
+      local failed_mounts=()
+      
+      # Check each Longhorn mount
+      while IFS= read -r mount_line; do
+        local mount_path
+        mount_path=$(echo "$mount_line" | awk '{print $3}')
+        local device
+        device=$(echo "$mount_line" | awk '{print $1}')
+        
+        # Test write/read on each mount
+        local test_file="$mount_path/.health-test-$$"
+        local test_data="health-test-$(date +%s)"
+        
+        if echo "$test_data" > "$test_file" 2>/dev/null && \
+           [ "$(cat "$test_file" 2>/dev/null)" = "$test_data" ]; then
+          rm -f "$test_file"
+          mount_details+=("$mount_path (device: $device) - OK")
+        else
+          failed_mounts+=("$mount_path")
+          rm -f "$test_file" 2>/dev/null || true
+        fi
+      done < <(mount | grep "/mnt/longhorn")
+      
+      if [ ${#failed_mounts[@]} -eq 0 ]; then
+        update_check_status "disk_mounts" "passed" "All $longhorn_mounts Longhorn mounts are healthy"
+        return 0
+      else
+        update_check_status "disk_mounts" "failed" "Failed mounts: ${failed_mounts[*]}"
+        add_error "Some Longhorn mounts failed health check: ${failed_mounts[*]}"
+        return 1
+      fi
+    }
+
+    # Validate Longhorn connectivity
+    validate_longhorn_connectivity() {
+      echo "🔍 Validating Longhorn connectivity..."
+      
+      # Check if kubectl is available
+      if ! command -v kubectl >/dev/null 2>&1; then
+        update_check_status "longhorn_connectivity" "skipped" "kubectl not available"
+        add_warning "kubectl not available - skipping Longhorn connectivity check"
+        return 1
+      fi
+      
+      # Check if Longhorn namespace exists
+      if ! kubectl get namespace longhorn-system >/dev/null 2>&1; then
+        update_check_status "longhorn_connectivity" "skipped" "Longhorn namespace not found"
+        add_warning "Longhorn namespace not found - Longhorn may not be installed"
+        return 1
+      fi
+      
+      # Check if Longhorn node exists
+      if kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system >/dev/null 2>&1; then
+        local node_status
+        node_status=$(kubectl get nodes.longhorn.io "$NODE_NAME" -n longhorn-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+        
+        if [ "$node_status" = "True" ]; then
+          update_check_status "longhorn_connectivity" "passed" "Longhorn node is registered and ready"
+          return 0
+        else
+          update_check_status "longhorn_connectivity" "warning" "Longhorn node registered but not ready (status: $node_status)"
+          add_warning "Longhorn node is registered but not ready"
+          return 1
+        fi
+      else
+        update_check_status "longhorn_connectivity" "warning" "Longhorn node not registered yet"
+        add_warning "Longhorn node not registered - this may be normal during initial setup"
+        return 1
+      fi
+    }
+
+    # Validate storage performance
+    validate_storage_performance() {
+      echo "🔍 Validating storage performance..."
+      
+      local longhorn_mounts
+      longhorn_mounts=$(mount | grep "/mnt/longhorn" | awk '{print $3}')
+      
+      if [ -z "$longhorn_mounts" ]; then
+        update_check_status "storage_performance" "skipped" "No Longhorn mounts to test"
+        return 1
+      fi
+      
+      local performance_results=()
+      local failed_tests=()
+      
+      for mount_path in $longhorn_mounts; do
+        echo "📊 Testing performance for $mount_path..."
+        
+        # Simple write performance test (1MB file)
+        local test_file="$mount_path/.perf-test-$$"
+        local start_time
+        start_time=$(date +%s.%N)
+        
+        if dd if=/dev/zero of="$test_file" bs=1M count=1 oflag=direct 2>/dev/null; then
+          local end_time
+          end_time=$(date +%s.%N)
+          local duration
+          duration=$(echo "$end_time - $start_time" | bc -l 2>/dev/null || echo "unknown")
+          
+          rm -f "$test_file"
+          
+          if [ "$duration" != "unknown" ] && (( $(echo "$duration < 5.0" | bc -l 2>/dev/null || echo 0) )); then
+            performance_results+=("$mount_path: ${duration}s (good)")
+          else
+            performance_results+=("$mount_path: ${duration}s (slow)")
+            add_warning "Storage performance on $mount_path is slow (${duration}s for 1MB write)"
+          fi
+        else
+          failed_tests+=("$mount_path")
+          rm -f "$test_file" 2>/dev/null || true
+        fi
+      done
+      
+      if [ ${#failed_tests[@]} -eq 0 ]; then
+        update_check_status "storage_performance" "passed" "Performance test completed: ${performance_results[*]}"
+        return 0
+      else
+        update_check_status "storage_performance" "failed" "Performance test failed for: ${failed_tests[*]}"
+        add_error "Storage performance test failed for: ${failed_tests[*]}"
+        return 1
+      fi
+    }
+
+    # Main validation function
+    main() {
+      echo "🚀 Starting storage health validation on $NODE_NAME"
+      init_status
+      
+      local overall_status="passed"
+      local checks_run=0
+      local checks_passed=0
+      
+      # Run all validation checks
+      local checks=(
+        "validate_iscsi_daemon"
+        "validate_kernel_modules" 
+        "validate_disk_mounts"
+        "validate_longhorn_connectivity"
+        "validate_storage_performance"
+      )
+      
+      for check_func in "${checks[@]}"; do
+        checks_run=$((checks_run + 1))
+        if $check_func; then
+          checks_passed=$((checks_passed + 1))
+        else
+          overall_status="warning"
+        fi
+        echo ""
+      done
+      
+      # Update final status
+      jq --arg status "$overall_status" --arg ts "$(date -Iseconds)" \
+        --arg summary "Completed $checks_passed/$checks_run checks" \
+        '.status = $status | .timestamp = $ts | .summary = $summary' \
+        "$STATUS_FILE" > "${STATUS_FILE}.tmp" && mv "${STATUS_FILE}.tmp" "$STATUS_FILE"
+      
+      echo "🎉 Storage health validation completed: $overall_status ($checks_passed/$checks_run checks passed)"
+      
+      # Return appropriate exit code
+      if [ "$overall_status" = "passed" ]; then
+        return 0
+      else
+        return 1
+      fi
+    }
+
+    # Run main function
+    main "$@"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: storage-health-validation
+  namespace: longhorn-system
+  labels:
+    app.kubernetes.io/name: storage-health-validation
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+spec:
+  template:
+    metadata:
+      labels:
+        app: storage-health-validation
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: longhorn-disk-discovery
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: validator
+          image: ubuntu:22.04
+          command:
+            - /bin/bash
+            - -c
+            - |
+              apt-get update -qq && apt-get install -y -qq jq bc curl
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl && mv kubectl /usr/local/bin/
+              /scripts/validate-storage-health.sh
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: validation-script
+              mountPath: /scripts
+            - name: host-var-log
+              mountPath: /var/log
+            - name: host-mnt
+              mountPath: /mnt
+              readOnly: true
+            - name: host-proc
+              mountPath: /proc
+              readOnly: true
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      volumes:
+        - name: validation-script
+          configMap:
+            name: storage-health-validator
+            defaultMode: 0755
+        - name: host-var-log
+          hostPath:
+            path: /var/log
+        - name: host-mnt
+          hostPath:
+            path: /mnt
+        - name: host-proc
+          hostPath:
+            path: /proc
+      tolerations:
+        - operator: Exists
+      nodeSelector:
+        storage: longhorn

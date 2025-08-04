@@ -1,0 +1,501 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recovery-patterns-config
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  recovery-patterns.yaml: |
+    # Error pattern detection and recovery configuration
+    patterns:
+      # Immutable field conflicts
+      - name: "immutable-field-conflict"
+        error_pattern: "field is immutable"
+        recovery_action: "recreate_resource"
+        max_retries: 3
+        applies_to: ["Deployment", "Service", "StatefulSet"]
+        severity: "high"
+        description: "Kubernetes resource has immutable field changes"
+
+      - name: "deployment-selector-conflict"
+        error_pattern: "dry-run failed.*Invalid.*spec.selector"
+        recovery_action: "recreate_deployment"
+        cleanup_dependencies: true
+        max_retries: 2
+        applies_to: ["Deployment"]
+        severity: "high"
+        description: "Deployment selector mismatch requiring recreation"
+
+      - name: "service-selector-conflict"
+        error_pattern: "cannot change.*selector.*Service"
+        recovery_action: "recreate_service"
+        cleanup_dependencies: false
+        max_retries: 2
+        applies_to: ["Service"]
+        severity: "medium"
+        description: "Service selector cannot be changed"
+
+      # HelmRelease specific patterns
+      - name: "helm-upgrade-failed"
+        error_pattern: "HelmRelease.*failed.*upgrade"
+        recovery_action: "rollback_helm_release"
+        max_retries: 2
+        validation_required: true
+        applies_to: ["HelmRelease"]
+        severity: "high"
+        description: "Helm release upgrade failed, rollback required"
+
+      - name: "helm-install-exhausted"
+        error_pattern: "install retries exhausted"
+        recovery_action: "reset_helm_release"
+        cleanup_dependencies: true
+        max_retries: 1
+        applies_to: ["HelmRelease"]
+        severity: "critical"
+        description: "Helm install retries exhausted, full reset required"
+
+      - name: "helm-timeout"
+        error_pattern: "timed out waiting for the condition"
+        recovery_action: "restart_helm_release"
+        max_retries: 2
+        applies_to: ["HelmRelease"]
+        severity: "medium"
+        description: "Helm operation timed out"
+
+      # Kustomization specific patterns
+      - name: "kustomization-build-failed"
+        error_pattern: "kustomization build failed"
+        recovery_action: "validate_and_retry"
+        max_retries: 1
+        applies_to: ["Kustomization"]
+        severity: "medium"
+        description: "Kustomization build failure"
+
+      - name: "resource-not-found"
+        error_pattern: "not found"
+        recovery_action: "recreate_missing_resource"
+        max_retries: 2
+        applies_to: ["Kustomization", "HelmRelease"]
+        severity: "medium"
+        description: "Referenced resource not found"
+
+      # Dependency and ordering issues
+      - name: "dependency-timeout"
+        error_pattern: "dependency.*not ready"
+        recovery_action: "check_dependencies"
+        max_retries: 3
+        applies_to: ["Kustomization", "HelmRelease"]
+        severity: "medium"
+        description: "Dependency not ready within timeout"
+        additional_conditions:
+          min_occurrences:
+            count: 2
+            time_window: 300
+
+      - name: "circular-dependency"
+        error_pattern: "circular dependency"
+        recovery_action: "break_circular_dependency"
+        max_retries: 1
+        applies_to: ["Kustomization"]
+        severity: "critical"
+        description: "Circular dependency detected"
+
+      # Source and repository issues
+      - name: "git-repository-unavailable"
+        error_pattern: "failed to checkout.*repository"
+        recovery_action: "retry_source_checkout"
+        max_retries: 2
+        applies_to: ["GitRepository"]
+        severity: "medium"
+        description: "Git repository checkout failed"
+
+      - name: "helm-repository-unavailable"
+        error_pattern: "failed to fetch.*helm repository"
+        recovery_action: "retry_helm_repository"
+        max_retries: 2
+        applies_to: ["HelmRepository"]
+        severity: "medium"
+        description: "Helm repository fetch failed"
+
+      # Resource quota and limits
+      - name: "resource-quota-exceeded"
+        error_pattern: "exceeded quota"
+        recovery_action: "check_resource_quotas"
+        max_retries: 1
+        applies_to: ["Deployment", "StatefulSet", "Job"]
+        severity: "high"
+        description: "Resource quota exceeded"
+
+      - name: "insufficient-resources"
+        error_pattern: "insufficient.*resources"
+        recovery_action: "analyze_resource_usage"
+        max_retries: 1
+        applies_to: ["Deployment", "StatefulSet", "DaemonSet"]
+        severity: "high"
+        description: "Insufficient cluster resources"
+
+      # Network and connectivity issues
+      - name: "network-policy-blocked"
+        error_pattern: "network policy.*denied"
+        recovery_action: "check_network_policies"
+        max_retries: 2
+        applies_to: ["Pod", "Service"]
+        severity: "medium"
+        description: "Network policy blocking connection"
+
+      - name: "dns-resolution-failed"
+        error_pattern: "dns.*resolution.*failed"
+        recovery_action: "check_dns_configuration"
+        max_retries: 2
+        applies_to: ["Pod", "Service"]
+        severity: "medium"
+        description: "DNS resolution failure"
+
+      # Storage and persistence issues
+      - name: "pvc-binding-failed"
+        error_pattern: "persistentvolumeclaim.*failed.*bind"
+        recovery_action: "check_storage_availability"
+        max_retries: 2
+        applies_to: ["PersistentVolumeClaim"]
+        severity: "high"
+        description: "PVC binding failed"
+
+      - name: "storage-class-unavailable"
+        error_pattern: "storageclass.*not found"
+        recovery_action: "check_storage_classes"
+        max_retries: 1
+        applies_to: ["PersistentVolumeClaim"]
+        severity: "high"
+        description: "Storage class not available"
+
+      # Advanced pattern detection for complex scenarios
+      - name: "cascading-failure-pattern"
+        error_pattern: "multiple.*resources.*failing"
+        recovery_action: "analyze_cascade_failure"
+        max_retries: 1
+        applies_to: ["Kustomization", "HelmRelease"]
+        severity: "critical"
+        description: "Cascading failure detected across multiple resources"
+        additional_conditions:
+          min_occurrences:
+            count: 3
+            time_window: 180
+
+      - name: "resource-version-conflict"
+        error_pattern: "resource version conflict|optimistic lock"
+        recovery_action: "retry_with_backoff"
+        max_retries: 5
+        applies_to: ["Deployment", "Service", "ConfigMap", "Secret"]
+        severity: "medium"
+        description: "Resource version conflict during update"
+
+      - name: "webhook-admission-failure"
+        error_pattern: "admission webhook.*denied|validating admission webhook"
+        recovery_action: "check_admission_controllers"
+        max_retries: 2
+        applies_to: ["Deployment", "Service", "Pod"]
+        severity: "high"
+        description: "Admission webhook blocking resource creation/update"
+
+      - name: "flux-controller-crash-loop"
+        error_pattern: "controller.*crash|panic|fatal error"
+        recovery_action: "restart_flux_controller"
+        max_retries: 2
+        applies_to: ["Pod"]
+        severity: "critical"
+        description: "Flux controller in crash loop"
+        additional_conditions:
+          namespace: ["flux-system"]
+          event_reason: ["Failed", "FailedMount", "FailedScheduling"]
+
+      - name: "git-authentication-failure"
+        error_pattern: "authentication.*failed|access denied.*git"
+        recovery_action: "refresh_git_credentials"
+        max_retries: 2
+        applies_to: ["GitRepository"]
+        severity: "high"
+        description: "Git authentication failure"
+
+      - name: "helm-chart-validation-failure"
+        error_pattern: "chart.*validation.*failed|invalid.*chart"
+        recovery_action: "validate_helm_chart"
+        max_retries: 1
+        applies_to: ["HelmRelease"]
+        severity: "medium"
+        description: "Helm chart validation failure"
+
+      - name: "resource-finalizer-stuck"
+        error_pattern: "finalizer.*preventing.*deletion"
+        recovery_action: "remove_stuck_finalizers"
+        max_retries: 2
+        applies_to: ["Deployment", "Service", "PersistentVolumeClaim", "Namespace"]
+        severity: "high"
+        description: "Resource stuck due to finalizers"
+
+      - name: "node-resource-pressure"
+        error_pattern: "node.*pressure|insufficient.*node.*resources"
+        recovery_action: "analyze_node_pressure"
+        max_retries: 1
+        applies_to: ["Pod", "Deployment"]
+        severity: "high"
+        description: "Node under resource pressure"
+
+      - name: "image-pull-backoff"
+        error_pattern: "image.*pull.*backoff|failed.*pull.*image"
+        recovery_action: "check_image_availability"
+        max_retries: 3
+        applies_to: ["Pod", "Deployment"]
+        severity: "medium"
+        description: "Container image pull failure"
+
+    # Recovery action definitions
+    recovery_actions:
+      recreate_resource:
+        description: "Delete and recreate the resource"
+        steps:
+          - "backup_resource_spec"
+          - "delete_resource_gracefully"
+          - "wait_for_deletion"
+          - "recreate_resource"
+          - "verify_recreation"
+        timeout: 300
+
+      recreate_deployment:
+        description: "Recreate deployment with dependency cleanup"
+        steps:
+          - "backup_deployment_spec"
+          - "scale_down_deployment"
+          - "delete_deployment"
+          - "cleanup_replicasets"
+          - "recreate_deployment"
+          - "verify_rollout"
+        timeout: 600
+
+      recreate_service:
+        description: "Recreate service without dependency cleanup"
+        steps:
+          - "backup_service_spec"
+          - "delete_service"
+          - "wait_for_deletion"
+          - "recreate_service"
+          - "verify_service"
+        timeout: 180
+
+      rollback_helm_release:
+        description: "Rollback HelmRelease to previous version"
+        steps:
+          - "get_previous_revision"
+          - "suspend_helmrelease"
+          - "rollback_helm_chart"
+          - "resume_helmrelease"
+          - "verify_rollback"
+        timeout: 600
+
+      reset_helm_release:
+        description: "Completely reset HelmRelease"
+        steps:
+          - "suspend_helmrelease"
+          - "uninstall_helm_chart"
+          - "cleanup_helm_resources"
+          - "resume_helmrelease"
+          - "verify_fresh_install"
+        timeout: 900
+
+      restart_helm_release:
+        description: "Restart HelmRelease reconciliation"
+        steps:
+          - "suspend_helmrelease"
+          - "wait_suspension"
+          - "resume_helmrelease"
+          - "verify_restart"
+        timeout: 300
+
+      validate_and_retry:
+        description: "Validate configuration and retry"
+        steps:
+          - "validate_kustomization"
+          - "check_source_availability"
+          - "force_reconcile"
+          - "verify_success"
+        timeout: 300
+
+      recreate_missing_resource:
+        description: "Recreate missing referenced resource"
+        steps:
+          - "identify_missing_resource"
+          - "check_resource_definition"
+          - "recreate_from_source"
+          - "verify_availability"
+        timeout: 300
+
+      check_dependencies:
+        description: "Check and resolve dependency issues"
+        steps:
+          - "list_dependencies"
+          - "check_dependency_status"
+          - "reconcile_dependencies"
+          - "retry_after_dependencies"
+        timeout: 600
+
+      break_circular_dependency:
+        description: "Break circular dependency by temporary suspension"
+        steps:
+          - "identify_circular_chain"
+          - "suspend_one_resource"
+          - "wait_for_resolution"
+          - "resume_suspended_resource"
+        timeout: 900
+
+      retry_source_checkout:
+        description: "Retry Git repository checkout with cleanup"
+        steps:
+          - "clear_git_cache"
+          - "verify_repository_access"
+          - "force_reconcile_source"
+          - "verify_checkout_success"
+        timeout: 300
+
+      retry_helm_repository:
+        description: "Retry Helm repository fetch with cache cleanup"
+        steps:
+          - "clear_helm_cache"
+          - "verify_repository_url"
+          - "force_reconcile_helm_repo"
+          - "verify_repository_index"
+        timeout: 300
+
+      check_resource_quotas:
+        description: "Check and analyze resource quota usage"
+        steps:
+          - "list_resource_quotas"
+          - "analyze_quota_usage"
+          - "identify_quota_violations"
+          - "suggest_quota_adjustments"
+        timeout: 180
+
+      analyze_resource_usage:
+        description: "Analyze cluster resource usage and availability"
+        steps:
+          - "check_node_resources"
+          - "analyze_pod_resource_requests"
+          - "identify_resource_bottlenecks"
+          - "suggest_resource_optimizations"
+        timeout: 240
+
+      check_network_policies:
+        description: "Check and validate network policies"
+        steps:
+          - "list_network_policies"
+          - "analyze_policy_rules"
+          - "test_network_connectivity"
+          - "suggest_policy_adjustments"
+        timeout: 300
+
+      check_dns_configuration:
+        description: "Check DNS configuration and resolution"
+        steps:
+          - "test_dns_resolution"
+          - "check_coredns_status"
+          - "verify_dns_configuration"
+          - "restart_dns_if_needed"
+        timeout: 240
+
+      check_storage_availability:
+        description: "Check storage availability and PVC binding"
+        steps:
+          - "list_available_pvs"
+          - "check_storage_classes"
+          - "analyze_pvc_requirements"
+          - "suggest_storage_solutions"
+        timeout: 300
+
+      check_storage_classes:
+        description: "Check and validate storage class configuration"
+        steps:
+          - "list_storage_classes"
+          - "verify_storage_provisioners"
+          - "check_storage_class_parameters"
+          - "suggest_storage_alternatives"
+        timeout: 180
+
+    # Configuration settings
+    settings:
+      # How often to check for stuck reconciliations (seconds)
+      check_interval: 60
+
+      # How long to wait before considering a reconciliation stuck (seconds)
+      stuck_threshold: 300
+
+      # Maximum number of concurrent recovery operations
+      max_concurrent_recoveries: 3
+
+      # Cooldown period between recovery attempts (seconds)
+      recovery_cooldown: 120
+
+      # Enable/disable automatic recovery
+      auto_recovery_enabled: true
+
+      # Minimum confidence threshold for auto-recovery
+      min_recovery_confidence: 0.7
+
+      # Severities that allow auto-recovery
+      auto_recovery_severities: ["high", "critical"]
+
+      # Event correlation window (seconds)
+      event_correlation_window: 300
+
+      # Pattern history retention (hours)
+      pattern_history_retention: 24
+
+      # Namespaces to monitor (empty means all)
+      monitored_namespaces: []
+
+      # Resources to exclude from monitoring
+      excluded_resources:
+        - "test-*"
+        - "*-backup"
+
+      # Critical namespaces that get priority treatment
+      critical_namespaces:
+        - "flux-system"
+        - "kube-system"
+        - "longhorn-system"
+        - "monitoring"
+
+      # Pattern matching configuration
+      pattern_matching:
+        enable_contextual_matching: true
+        enable_trend_analysis: true
+        confidence_boost_for_critical: 0.1
+        confidence_penalty_for_frequent: 0.1
+        enable_machine_learning: false
+        pattern_correlation_threshold: 0.6
+        enable_predictive_detection: true
+
+      # Recovery execution settings
+      recovery_execution:
+        enable_parallel_steps: false
+        step_timeout_multiplier: 1.5
+        max_step_retries: 2
+
+      # Notification settings
+      notifications:
+        enabled: true
+        webhook_url: ""
+        slack_channel: ""
+        escalation_threshold: "critical"
+
+      # Metrics and monitoring
+      metrics:
+        enabled: true
+        export_interval: 30
+        retention_days: 7
+
+      # Logging configuration
+      logging:
+        level: "info"
+        format: "json"
+        include_events: true
+        include_correlation_info: true

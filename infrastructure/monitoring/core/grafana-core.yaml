@@ -84,6 +84,14 @@ spec:
             editable: true
             options:
               path: /var/lib/grafana/dashboards/flux
+          - name: "nodes"
+            orgId: 1
+            folder: "Node Monitoring"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/nodes
 
     # Sidecar configuration to load dashboards from ConfigMaps
     sidecar:
@@ -114,6 +122,12 @@ spec:
         gitops-health:
           file: gitops-health-dashboard.json
           datasource: Prometheus-Core
+        k3s2-node-monitoring:
+          file: k3s2-node-dashboard.json
+          datasource: Prometheus-Core
+        multi-node-cluster-overview:
+          file: multi-node-cluster-dashboard.json
+          datasource: Prometheus-Core
       longhorn:
         longhorn-dashboard:
           url: https://raw.githubusercontent.com/longhorn/longhorn/v1.5.1/deploy/longhorn-grafana-dashboard.json
@@ -126,6 +140,10 @@ spec:
         flux-control-plane:
           gnetId: 16713
           revision: 1
+          datasource: Prometheus-Core
+      nodes:
+        k3s2-node-dashboard:
+          file: k3s2-node-dashboard.json
           datasource: Prometheus-Core
 
     # Service configuration

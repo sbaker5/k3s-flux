@@ -1,0 +1,12 @@
+# Invalid YAML syntax - should cause build failure
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+
+# Invalid YAML - missing closing bracket
+commonLabels:
+  app: test-app
+  environment: test
+  invalid-yaml: [missing-close

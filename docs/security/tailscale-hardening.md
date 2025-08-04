@@ -12,7 +12,7 @@ Based on the GitOps spec analysis, the following critical security issues exist 
 
 1. **Plaintext Auth Key in Git**
    - **File**: `infrastructure/tailscale/base/secret.yaml`
-   - **Issue**: `tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y`
+   - **Issue**: `tskey-auth-[REDACTED-EXPOSED-KEY]`
    - **Risk**: Network access compromise, unauthorized cluster access
 
 2. **Privileged Container**
@@ -62,7 +62,7 @@ Based on the GitOps spec analysis, the following critical security issues exist 
 echo "CRITICAL: Revoking exposed Tailscale auth key"
 echo "Manual action required:"
 echo "1. Go to: https://login.tailscale.com/admin/settings/keys"
-echo "2. Find key: tskey-auth-kLVPjnrkY521CNTRL-Ur6BhWwo8FVQq2DWksJSEV9Z1JG1cR7y"
+echo "2. Find the exposed key (check GitHub security alert for the key ID)"
 echo "3. Click 'Revoke' to immediately disable the key"
 echo ""
 echo "This will disconnect the current Tailscale connection."

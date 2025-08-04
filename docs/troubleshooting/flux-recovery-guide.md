@@ -37,6 +37,17 @@ flux reconcile kustomization flux-system
 # OR use MCP: mcp_flux_reconcile_flux_kustomization
 ```
 
+## Advanced Troubleshooting with MCP Tools
+
+For systematic troubleshooting of specific Flux resources, use the specialized troubleshooting workflows available through the `#flux-troubleshooting` context in your development environment. These workflows provide comprehensive procedures for:
+
+- **HelmRelease Issues**: Systematic analysis including controller status, configuration validation, source checking, and managed resource analysis
+- **Kustomization Problems**: Complete debugging workflow including source validation, dependency analysis, and resource status verification
+- **Multi-Cluster Comparisons**: Comparing Flux resources across clusters to identify configuration drift
+- **Resource Relationship Analysis**: Understanding Flux resource dependencies and management relationships
+
+These specialized workflows complement the traditional recovery procedures documented in this guide and provide enhanced diagnostics when MCP tools are available.
+
 ## Current State Assessment
 
 ### Automated Health Checks

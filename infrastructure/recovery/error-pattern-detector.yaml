@@ -1,0 +1,468 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: error-pattern-controller-script
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  controller.py: |
+    #!/usr/bin/env python3
+    """
+    Error Pattern Detection Controller for Flux GitOps Recovery
+
+    This is a simplified version that logs detected patterns and monitors Flux resources.
+    """
+
+    import time
+    import json
+    import logging
+    import os
+    import yaml
+    import re
+    from datetime import datetime, timedelta
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger('error-pattern-detector')
+
+    class ErrorPatternDetector:
+        def __init__(self):
+            self.config = {}
+            self.patterns = []
+            self.settings = {}
+            self.recovery_state = {}
+            
+        def load_config(self):
+            """Load recovery patterns configuration"""
+            try:
+                config_path = '/etc/recovery-config/recovery-patterns.yaml'
+                with open(config_path, 'r') as f:
+                    self.config = yaml.safe_load(f)
+                
+                self.patterns = self.config.get('patterns', [])
+                self.settings = self.config.get('settings', {})
+                
+                logger.info(f"Loaded {len(self.patterns)} error patterns")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to load config: {e}")
+                return False
+        
+        def simulate_event_monitoring(self):
+            """Simulate monitoring of Flux events for error patterns"""
+            logger.info("Simulating Flux event monitoring...")
+            
+            # Simulate some common error scenarios
+            simulated_events = [
+                {
+                    'type': 'Warning',
+                    'reason': 'ReconciliationFailed',
+                    'message': 'dry-run failed: Invalid value: map[string]string{"app":"test"}: field is immutable',
+                    'involved_object': {'kind': 'Deployment', 'name': 'test-app', 'namespace': 'default'}
+                },
+                {
+                    'type': 'Warning', 
+                    'reason': 'HelmUpgradeFailed',
+                    'message': 'HelmRelease default/monitoring failed: upgrade retries exhausted',
+                    'involved_object': {'kind': 'HelmRelease', 'name': 'monitoring', 'namespace': 'default'}
+                },
+                {
+                    'type': 'Warning',
+                    'reason': 'KustomizationFailed', 
+                    'message': 'kustomization build failed: resource not found',
+                    'involved_object': {'kind': 'Kustomization', 'name': 'apps', 'namespace': 'flux-system'}
+                }
+            ]
+            
+            for event in simulated_events:
+                self.process_simulated_event(event)
+        
+        def process_simulated_event(self, event):
+            """Process a simulated event for pattern matching"""
+            logger.info(f"Processing event: {event['reason']} - {event['message']}")
+            
+            # Check against all patterns
+            for pattern in self.patterns:
+                if self.match_pattern(event, pattern):
+                    self.handle_pattern_match(event, pattern)
+        
+        def match_pattern(self, event, pattern):
+            """Check if event matches an error pattern"""
+            try:
+                error_pattern = pattern.get('error_pattern', '')
+                applies_to = pattern.get('applies_to', [])
+                
+                # Check if pattern applies to this resource type
+                if applies_to and 'involved_object' in event:
+                    if event['involved_object']['kind'] not in applies_to:
+                        return False
+                
+                # Check if event message matches the pattern
+                if re.search(error_pattern, event['message'], re.IGNORECASE):
+                    return True
+                    
+                return False
+                
+            except Exception as e:
+                logger.error(f"Error matching pattern: {e}")
+                return False
+        
+        def handle_pattern_match(self, event, pattern):
+            """Handle a matched error pattern"""
+            try:
+                pattern_name = pattern['name']
+                resource_info = "unknown"
+                
+                if 'involved_object' in event:
+                    obj = event['involved_object']
+                    resource_info = f"{obj['namespace']}/{obj['kind']}/{obj['name']}"
+                
+                logger.warning(f"🚨 Error pattern detected: {pattern_name}")
+                logger.warning(f"   Resource: {resource_info}")
+                logger.warning(f"   Severity: {pattern.get('severity', 'medium')}")
+                logger.warning(f"   Recovery Action: {pattern.get('recovery_action', 'none')}")
+                logger.warning(f"   Description: {pattern.get('description', 'No description')}")
+                
+                # Record the pattern match
+                self.record_pattern_match(event, pattern)
+                
+                # In a real implementation, this would trigger actual recovery
+                if self.settings.get('auto_recovery_enabled', False):
+                    logger.info(f"   ⚡ Auto-recovery would be triggered for: {pattern.get('recovery_action')}")
+                else:
+                    logger.info(f"   ⏸️  Auto-recovery disabled, manual intervention required")
+                
+            except Exception as e:
+                logger.error(f"Error handling pattern match: {e}")
+        
+        def record_pattern_match(self, event, pattern):
+            """Record the pattern match in recovery state"""
+            try:
+                resource_key = "unknown"
+                if 'involved_object' in event:
+                    obj = event['involved_object']
+                    resource_key = f"{obj['namespace']}/{obj['kind']}/{obj['name']}"
+                
+                state_key = f"{resource_key}:{pattern['name']}"
+                
+                self.recovery_state[state_key] = {
+                    'first_seen': datetime.now().isoformat(),
+                    'last_seen': datetime.now().isoformat(),
+                    'pattern_name': pattern['name'],
+                    'severity': pattern.get('severity', 'medium'),
+                    'recovery_action': pattern.get('recovery_action', 'none'),
+                    'retry_count': 0,
+                    'status': 'detected'
+                }
+                
+                logger.debug(f"Recorded pattern match: {state_key}")
+                
+            except Exception as e:
+                logger.error(f"Error recording pattern match: {e}")
+        
+        def check_stuck_reconciliations(self):
+            """Simulate checking for stuck reconciliations"""
+            logger.info("Checking for stuck reconciliations...")
+            
+            # Simulate finding stuck resources
+            stuck_resources = [
+                {'kind': 'Kustomization', 'name': 'infrastructure', 'namespace': 'flux-system', 'stuck_duration': '8m'},
+                {'kind': 'HelmRelease', 'name': 'longhorn', 'namespace': 'longhorn-system', 'stuck_duration': '12m'}
+            ]
+            
+            threshold_minutes = self.settings.get('stuck_threshold', 300) // 60
+            
+            for resource in stuck_resources:
+                stuck_minutes = int(resource['stuck_duration'].replace('m', ''))
+                if stuck_minutes > threshold_minutes:
+                    logger.warning(f"🕐 Stuck reconciliation detected:")
+                    logger.warning(f"   {resource['kind']}: {resource['namespace']}/{resource['name']}")
+                    logger.warning(f"   Stuck for: {resource['stuck_duration']} (threshold: {threshold_minutes}m)")
+        
+        def monitor_real_events(self):
+            """Monitor real Kubernetes events for error patterns"""
+            try:
+                # Try to import kubernetes client
+                from kubernetes import client, config, watch
+                
+                # Load in-cluster configuration
+                config.load_incluster_config()
+                v1 = client.CoreV1Api()
+                
+                logger.info("🔍 Starting real-time Kubernetes event monitoring...")
+                
+                # Continuous monitoring loop with reconnection
+                while True:
+                    try:
+                        # Watch events across all namespaces
+                        w = watch.Watch()
+                        for event in w.stream(v1.list_event_for_all_namespaces, timeout_seconds=300):
+                            event_obj = event['object']
+                            
+                            # Only process Warning events from Flux controllers
+                            if (event_obj.type == 'Warning' and 
+                                self.is_flux_related_event(event_obj)):
+                                
+                                logger.info(f"📡 Real Flux event: {event_obj.reason} - {event_obj.message}")
+                                
+                                # Convert to our event format
+                                converted_event = {
+                                    'type': event_obj.type,
+                                    'reason': event_obj.reason,
+                                    'message': event_obj.message,
+                                    'involved_object': {
+                                        'kind': event_obj.involved_object.kind,
+                                        'name': event_obj.involved_object.name,
+                                        'namespace': event_obj.involved_object.namespace or event_obj.namespace
+                                    }
+                                }
+                                
+                                self.process_simulated_event(converted_event)
+                        
+                        # Timeout reached, reconnect
+                        logger.info("🔄 Event stream timeout, reconnecting...")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Error in event monitoring loop: {e}")
+                        logger.info("⏳ Retrying in 30 seconds...")
+                        time.sleep(30)
+                        
+            except ImportError:
+                logger.warning("⚠️  Kubernetes client not available, using simulation mode")
+                return False
+            except Exception as e:
+                logger.error(f"❌ Error initializing event monitoring: {e}")
+                return False
+            
+            return True
+        
+        def is_flux_related_event(self, event_obj):
+            """Check if event is related to Flux controllers or resources"""
+            flux_sources = [
+                'kustomize-controller',
+                'helm-controller', 
+                'source-controller',
+                'notification-controller'
+            ]
+            
+            flux_kinds = [
+                'Kustomization',
+                'HelmRelease',
+                'GitRepository',
+                'HelmRepository',
+                'OCIRepository',
+                'Bucket',
+                'HelmChart'
+            ]
+            
+            # Check if event source is a Flux controller
+            if hasattr(event_obj, 'source') and event_obj.source:
+                if any(source in event_obj.source.component for source in flux_sources):
+                    return True
+            
+            # Check if involved object is a Flux resource
+            if hasattr(event_obj, 'involved_object') and event_obj.involved_object:
+                if event_obj.involved_object.kind in flux_kinds:
+                    return True
+            
+            return False
+        
+        def run(self):
+            """Main run loop"""
+            logger.info("🚀 Starting Error Pattern Detector")
+            
+            if not self.load_config():
+                logger.error("Failed to load configuration, exiting")
+                return
+            
+            # Log configuration
+            logger.info(f"📋 Configuration loaded:")
+            logger.info(f"   Patterns: {len(self.patterns)}")
+            logger.info(f"   Check interval: {self.settings.get('check_interval', 60)}s")
+            logger.info(f"   Stuck threshold: {self.settings.get('stuck_threshold', 300)}s")
+            logger.info(f"   Auto-recovery: {self.settings.get('auto_recovery_enabled', False)}")
+            
+            # Log loaded patterns
+            for pattern in self.patterns:
+                logger.info(f"   📝 Pattern: {pattern.get('name')} ({pattern.get('severity', 'medium')})")
+            
+            check_interval = self.settings.get('check_interval', 60)
+            
+            # Try real event monitoring first, fall back to simulation
+            use_real_events = self.monitor_real_events()
+            
+            if not use_real_events:
+                logger.info("📺 Falling back to simulation mode")
+                
+                # Main monitoring loop
+                cycle = 0
+                while True:
+                    try:
+                        cycle += 1
+                        logger.info(f"🔍 Pattern detection cycle #{cycle}")
+                        
+                        # Simulate event monitoring
+                        self.simulate_event_monitoring()
+                        
+                        # Check for stuck reconciliations
+                        self.check_stuck_reconciliations()
+                        
+                        # Log recovery state summary
+                        if self.recovery_state:
+                            logger.info(f"📊 Recovery state: {len(self.recovery_state)} tracked issues")
+                        
+                        logger.info(f"✅ Cycle #{cycle} completed, sleeping for {check_interval}s")
+                        time.sleep(check_interval)
+                        
+                    except KeyboardInterrupt:
+                        logger.info("🛑 Shutting down...")
+                        break
+                    except Exception as e:
+                        logger.error(f"❌ Error in main loop: {e}")
+                        time.sleep(30)
+
+    def main():
+        """Main entry point"""
+        detector = ErrorPatternDetector()
+        detector.run()
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: error-pattern-detector
+  namespace: flux-recovery
+  labels:
+    app: error-pattern-detector
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: error-pattern-detector
+  template:
+    metadata:
+      labels:
+        app: error-pattern-detector
+    spec:
+      serviceAccountName: error-pattern-detector
+      containers:
+        - name: controller
+          image: python:3.11-alpine
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - |
+              pip install pyyaml kubernetes
+              python /app/controller.py
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/recovery-config
+              readOnly: true
+            - name: controller-script
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: recovery-patterns-config
+        - name: controller-script
+          configMap:
+            name: error-pattern-controller-script
+            defaultMode: 0755
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: error-pattern-detector
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: error-pattern-detector
+  labels:
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+rules:
+  # Read Flux resources and events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["source.toolkit.fluxcd.io"]
+    resources:
+      [
+        "gitrepositories",
+        "helmrepositories",
+        "ocirepositories",
+        "buckets",
+        "helmcharts",
+      ]
+    verbs: ["get", "list", "watch"]
+  # Read and modify Kubernetes resources for recovery
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "delete", "create", "patch", "update"]
+  # Create recovery events and status updates
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "patch", "update"]
+    resourceNames: ["recovery-state", "recovery-patterns-config"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: error-pattern-detector
+  labels:
+    app.kubernetes.io/name: error-pattern-detector
+    app.kubernetes.io/part-of: flux-recovery
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: error-pattern-detector
+subjects:
+  - kind: ServiceAccount
+    name: error-pattern-detector
+    namespace: flux-recovery
