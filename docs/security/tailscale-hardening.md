@@ -2,130 +2,43 @@
 
 ## Overview
 
-This guide addresses the security vulnerabilities identified in the current Tailscale configuration and provides step-by-step hardening procedures to improve the security posture of the remote access system.
+This guide provides step-by-step procedures to secure the Tailscale subnet router configuration in the k3s cluster.
 
-## Current Security Issues
+## Security Issues Addressed
 
-Based on the GitOps spec analysis, the following critical security issues exist in the Tailscale configuration:
+### Critical Issues
+- **Plaintext auth keys in Git** - Keys stored unencrypted in version control
+- **Privileged containers** - Unnecessary elevated permissions
+- **Unpinned image versions** - Using `:latest` tags creates supply chain risks
 
-### **CRITICAL Issues**
+### High Priority Issues  
+- **Missing health checks** - No failure detection mechanisms
+- **Hardcoded network ranges** - Inflexible environment configuration
+- **Insufficient resource limits** - Risk of resource exhaustion
 
-1. **Plaintext Auth Key in Git**
-   - **File**: `infrastructure/tailscale/base/secret.yaml`
-   - **Issue**: `tskey-auth-[REDACTED-EXPOSED-KEY]`
-   - **Risk**: Network access compromise, unauthorized cluster access
+### Medium Priority Issues
+- **No environment separation** - Single configuration for all environments
+- **Missing network policies** - Unrestricted network access
+- **No monitoring/alerting** - Limited observability
 
-2. **Privileged Container**
-   - **File**: `infrastructure/tailscale/base/subnet-router.yaml:19`
-   - **Issue**: `privileged: true`
-   - **Risk**: Container escape, host compromise
-
-3. **Latest Image Tag**
-   - **File**: `infrastructure/tailscale/base/subnet-router.yaml:31`
-   - **Issue**: `tailscale/tailscale:latest`
-   - **Risk**: Supply chain attacks, unpredictable deployments
-
-### **HIGH Priority Issues**
-
-4. **Hardcoded Network Ranges**
-   - **File**: `infrastructure/tailscale/base/subnet-router.yaml:50`
-   - **Issue**: `TS_ROUTES` hardcoded in base configuration
-   - **Risk**: Inflexible network configuration, environment leakage
-
-5. **Missing Health Checks**
-   - **Issue**: No liveness/readiness probes
-   - **Risk**: Failed containers not detected, service degradation
-
-6. **Insufficient Resource Limits**
-   - **Issue**: Current limits may be insufficient (100m CPU, 100Mi memory)
-   - **Risk**: Resource exhaustion, denial of service
-
-### **MEDIUM Priority Issues**
-
-7. **No Environment Overlays**
-   - **Issue**: Single configuration for all environments
-   - **Risk**: Configuration drift, security policy violations
-
-8. **Missing Documentation**
-   - **Issue**: No inline comments explaining security model
-   - **Risk**: Misconfiguration, maintenance errors
-
-## Hardening Implementation
+## Quick Start
 
 ### Step 1: Immediate Security Fixes
 
-#### 1.1 Revoke Exposed Auth Key
+Use the provided scripts to quickly secure your Tailscale configuration:
+
 ```bash
-#!/bin/bash
-# scripts/revoke-tailscale-key.sh
+# 1. Set up SOPS encryption
+./scripts/setup-sops-for-tailscale.sh
 
-echo "CRITICAL: Revoking exposed Tailscale auth key"
-echo "Manual action required:"
-echo "1. Go to: https://login.tailscale.com/admin/settings/keys"
-echo "2. Find the exposed key (check GitHub security alert for the key ID)"
-echo "3. Click 'Revoke' to immediately disable the key"
-echo ""
-echo "This will disconnect the current Tailscale connection."
-echo "Proceed with generating a new encrypted key."
-```
+# 2. Revoke the exposed key in Tailscale admin console
+# Go to: https://login.tailscale.com/admin/settings/keys
 
-#### 1.2 Generate New Encrypted Auth Key
-```bash
-#!/bin/bash
-# scripts/generate-secure-tailscale-key.sh
+# 3. Create new encrypted secret
+./scripts/create-encrypted-tailscale-secret.sh
 
-set -euo pipefail
-
-echo "Generating secure Tailscale configuration..."
-
-# Check if SOPS is configured
-if [[ ! -f .sops.yaml ]]; then
-    echo "ERROR: SOPS not configured. Run SOPS setup first."
-    exit 1
-fi
-
-echo "Manual steps required:"
-echo "1. Go to: https://login.tailscale.com/admin/settings/keys"
-echo "2. Click 'Generate auth key'"
-echo "3. Configure the key:"
-echo "   - Description: k3s-cluster-subnet-router-$(date +%Y%m%d)"
-echo "   - Reusable: Yes (for multiple deployments)"
-echo "   - Ephemeral: No (so it persists across restarts)"
-echo "   - Pre-authorized: Yes (auto-approves the device)"
-echo "   - Tags: tag:k8s (for ACL management)"
-echo ""
-
-read -p "Enter the new auth key: " NEW_AUTH_KEY
-
-if [[ -z "$NEW_AUTH_KEY" || ! "$NEW_AUTH_KEY" =~ ^tskey-auth- ]]; then
-    echo "ERROR: Invalid auth key format"
-    exit 1
-fi
-
-# Create encrypted secret
-cat > infrastructure/tailscale/base/secret.sops.yaml << EOF
-apiVersion: v1
-kind: Secret
-metadata:
-  name: tailscale-auth
-  namespace: tailscale
-  labels:
-    app.kubernetes.io/name: tailscale
-    app.kubernetes.io/component: subnet-router
-    app.kubernetes.io/managed-by: flux
-type: Opaque
-stringData:
-  # Tailscale auth key for k3s cluster subnet router
-  # Generated: $(date)
-  # Settings: Reusable=Yes, Ephemeral=No, Tags=tag:k8s
-  TS_AUTHKEY: "$NEW_AUTH_KEY"
-EOF
-
-# Encrypt the secret
-sops --encrypt --in-place infrastructure/tailscale/base/secret.sops.yaml
-
-echo "✅ Encrypted secret created: infrastructure/tailscale/base/secret.sops.yaml"
-echo "✅ Old plaintext secret will be removed in next step"
+# 4. Validate security configuration
+./scripts/validate-tailscale-security.sh
 ```
 
 ### Step 2: Container Security Hardening
