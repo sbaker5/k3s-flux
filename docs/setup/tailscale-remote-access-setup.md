@@ -31,13 +31,22 @@ Tailscale provides:
 
 ## Step 2: Configure the Secret
 
+**⚠️ SECURITY NOTE**: Never commit plaintext auth keys to Git. Use SOPS encryption for production deployments.
+
 Edit the Tailscale secret with your auth key:
 
 ```bash
 # Edit the secret file
 vim infrastructure/tailscale/base/secret.yaml
 
-# Replace REPLACE_WITH_YOUR_TAILSCALE_AUTH_KEY with your actual key
+# Replace [PLACEHOLDER-GENERATE-NEW-KEY] with your actual key
+# For production: Use SOPS encryption (see docs/security/sops-setup.md)
+```
+
+**For Production Environments**:
+```bash
+# Use SOPS encryption instead of plaintext
+./scripts/create-encrypted-tailscale-secret.sh
 ```
 
 ## Step 3: Verify Network Configuration
@@ -350,5 +359,15 @@ Once remote access is working:
 - **Monitor access logs** in Tailscale admin console
 - **Rotate auth keys** periodically
 - **Use device approval** for additional security
+- **⚠️ CRITICAL**: Never commit plaintext auth keys to Git repositories
+- **Use SOPS encryption** for all production secrets
+
+### Recent Security Improvements
+
+This setup has been enhanced with comprehensive security hardening. See the [Tailscale Hardening Guide](../security/tailscale-hardening.md) for:
+- Container security improvements (removing privileged access)
+- Network policy implementation
+- Environment-specific configurations
+- Monitoring and alerting setup
 
 This setup gives you secure, encrypted access to your entire k3s cluster from anywhere in the world, without exposing any ports to the internet.

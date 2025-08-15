@@ -1,0 +1,205 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: update-orchestrator-config
+  namespace: flux-recovery
+  labels:
+    app.kubernetes.io/name: update-orchestrator
+    app.kubernetes.io/component: configuration
+    app.kubernetes.io/part-of: flux-recovery
+data:
+  config.yaml: |
+    # Update Orchestrator Configuration
+
+    # Timing configuration
+    batch_timeout: 600          # 10 minutes per batch
+    operation_timeout: 300      # 5 minutes per operation
+    max_retries: 3              # Maximum retry attempts
+
+    # Execution configuration
+    parallel_batches: false     # Execute batches sequentially for safety
+    validation_enabled: true    # Enable pre-execution validation
+    rollback_on_failure: true   # Rollback on batch failure
+
+    # Update strategies by resource type
+    strategies:
+      # Rolling update strategies (for resources that support it)
+      Deployment: "rolling"
+      StatefulSet: "rolling"
+      DaemonSet: "rolling"
+
+      # Recreate strategies (for immutable resources)
+      Service: "recreate"        # ClusterIP is immutable
+      Job: "recreate"            # Job spec is immutable
+      Pod: "recreate"            # Pod spec is mostly immutable
+
+      # Atomic strategies (for simple resources)
+      ConfigMap: "atomic"
+      Secret: "atomic"
+      ServiceAccount: "atomic"
+      Role: "atomic"
+      RoleBinding: "atomic"
+      ClusterRole: "atomic"
+      ClusterRoleBinding: "atomic"
+
+      # Blue-green strategies (for complex scenarios)
+      # Note: Blue-green is not fully implemented yet
+      # Ingress: "blue-green"
+
+    # Resource priority configuration
+    # Higher priority resources are updated first within their dependency batch
+    priorities:
+      Namespace: 100
+      ServiceAccount: 90
+      Role: 85
+      RoleBinding: 85
+      ClusterRole: 80
+      ClusterRoleBinding: 80
+      ConfigMap: 70
+      Secret: 70
+      PersistentVolume: 60
+      PersistentVolumeClaim: 55
+      Service: 50
+      Deployment: 40
+      StatefulSet: 40
+      DaemonSet: 40
+      Job: 30
+      CronJob: 30
+      Pod: 20
+      Ingress: 10
+
+    # Dependency analysis configuration
+    dependency_analysis:
+      # Enable different types of dependency detection
+      owner_references: true      # ownerReferences in metadata
+      spec_references: true       # References in spec (configMapRef, etc.)
+      annotation_dependencies: true  # Custom dependency annotations
+      flux_dependencies: true     # Flux kustomize.toolkit.fluxcd.io/depends-on
+
+      # Custom dependency annotations to recognize
+      custom_annotations:
+        - "gitops.flux.io/depends-on"
+        - "app.kubernetes.io/depends-on"
+        - "update.orchestrator.io/depends-on"
+
+    # Validation configuration
+    validation:
+      # Enable different validation types
+      dry_run: true               # kubectl apply --dry-run
+      dependency_check: true      # Verify dependencies are ready
+      resource_exists: true       # Check if resource exists before update
+
+      # Validation timeouts
+      dry_run_timeout: 30         # 30 seconds for dry-run validation
+      dependency_timeout: 60      # 60 seconds to wait for dependencies
+
+    # Rollback configuration
+    rollback:
+      # Enable automatic rollback on failure
+      enabled: true
+
+      # Rollback strategy
+      strategy: "reverse_order"   # Rollback in reverse dependency order
+
+      # Rollback timeout
+      timeout: 300                # 5 minutes for rollback operations
+
+    # Logging configuration
+    logging:
+      level: "INFO"               # DEBUG, INFO, WARN, ERROR
+      format: "structured"        # structured or simple
+
+      # Log specific events
+      log_dependency_analysis: true
+      log_batch_execution: true
+      log_operation_details: true
+      log_validation_results: true
+
+    # Monitoring and metrics
+    monitoring:
+      # Enable metrics collection
+      enabled: true
+
+      # Metrics to collect
+      metrics:
+        - "update_operations_total"
+        - "update_operations_duration_seconds"
+        - "update_batches_total"
+        - "update_failures_total"
+        - "dependency_analysis_duration_seconds"
+
+    # Safety limits
+    safety:
+      # Maximum number of resources to update in a single batch
+      max_batch_size: 50
+
+      # Maximum number of concurrent operations
+      max_concurrent_operations: 10
+
+      # Maximum total update time
+      max_total_update_time: 3600  # 1 hour
+
+      # Require confirmation for large updates
+      require_confirmation_threshold: 20  # resources
+
+    # Resource-specific configuration
+    resource_config:
+      Deployment:
+        # Wait for rollout completion
+        wait_for_rollout: true
+        rollout_timeout: 600      # 10 minutes
+
+        # Health check configuration
+        health_check:
+          enabled: true
+          ready_replicas_threshold: 1.0  # 100% of replicas must be ready
+
+      StatefulSet:
+        wait_for_rollout: true
+        rollout_timeout: 900      # 15 minutes (StatefulSets can be slower)
+
+        # StatefulSet-specific settings
+        update_strategy: "RollingUpdate"
+
+      Service:
+        # Service recreation settings
+        preserve_cluster_ip: false  # Don't preserve ClusterIP (immutable)
+
+        # Wait for endpoints
+        wait_for_endpoints: true
+        endpoints_timeout: 60     # 1 minute
+
+      ConfigMap:
+        # ConfigMap update settings
+        trigger_pod_restart: false  # Don't automatically restart pods
+
+      Secret:
+        # Secret update settings
+        trigger_pod_restart: false  # Don't automatically restart pods
+
+        # Security settings
+        mask_values_in_logs: true   # Don't log secret values
+
+    # Environment-specific overrides
+    environments:
+      development:
+        batch_timeout: 300        # Shorter timeouts for dev
+        operation_timeout: 120
+        rollback_on_failure: false  # Don't rollback in dev
+
+      staging:
+        validation_enabled: true
+        require_confirmation_threshold: 10
+
+      production:
+        batch_timeout: 1200       # Longer timeouts for prod
+        operation_timeout: 600
+        max_retries: 5
+        require_confirmation_threshold: 5  # More conservative in prod
+
+        # Additional safety checks for production
+        safety:
+          max_batch_size: 20
+          max_concurrent_operations: 5
+          require_manual_approval: true

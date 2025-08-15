@@ -3,6 +3,7 @@
 ## 🚀 Quick Start - What You Need Most
 
 ### Just Want to Use Your Cluster?
+- **[Longhorn Infrastructure Recovery](longhorn-infrastructure-recovery-completion.md)** - ✅ **COMPLETED** - Comprehensive distributed storage implementation
 - **[Monitoring Guide](guides/monitoring-user-guide.md)** - How to access and read your dashboards
 - **[Remote Access Guide](guides/remote-access-quick-reference.md)** - Access your cluster from anywhere
 - **[App Management](application-management.md)** - Deploy and manage applications
@@ -37,13 +38,16 @@ Comprehensive troubleshooting guides including traditional CLI methods, MCP-base
 
 ### Architecture & Reference
 - **[Architecture Overview](architecture-overview.md)** - How everything fits together
-- **[GitOps Patterns](gitops-resilience-patterns.md)** - GitOps best practices
+- **[GitOps Patterns](gitops-resilience-patterns.md)** - GitOps best practices and resilience system
+- **[GitOps Update Management](gitops-update-management.md)** - 🚧 **Core Detection Infrastructure In Development** - Comprehensive update management system with automated detection, safe patching, and rollback capabilities
+- **[Git-Flux Reconciliation Monitor](git-flux-reconciliation-monitor.md)** - 🚧 **In Development** - Intelligent post-commit monitoring with real-time Flux reconciliation feedback
 - **[MCP Tools Guide](mcp-tools-guide.md)** - Enhanced kubectl commands with comprehensive built-in guidance
 
 ### Development & Advanced
 - **[Security](security/)** - Security configuration and hardening
 - **[Testing](testing/)** - Testing procedures and validation
 - **[Development](workspace-rules.md)** - Development standards and practices
+- **[Git Hook Setup](pre-commit-setup.md)** - Pre-commit validation and post-commit monitoring configuration
 - **[Script Development](troubleshooting/validation-script-development.md)** - Validation script development lessons and best practices
 - **[Script Development Best Practices](../.kiro/steering/08-script-development-best-practices.md)** - **CRITICAL**: Comprehensive best practices automatically applied when working with shell scripts
 

@@ -9,6 +9,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 > **New!** Documentation has been reorganized into logical folders: `setup/`, `guides/`, `operations/`, etc. The main docs folder now has a clear structure to help you find what you need quickly.
 
 ### Quick Start - What You Need Most
+- **[Longhorn Infrastructure Recovery](docs/longhorn-infrastructure-recovery-completion.md)** - ✅ **COMPLETED** - Comprehensive Longhorn infrastructure recovery implementation
 - **[k3s2 Node Onboarding Status](docs/k3s2-onboarding-status.md)** - 🚀 **Ready for Deployment** - Complete infrastructure prepared
 - **[k3s2 Onboarding Completion Summary](docs/k3s2-onboarding-completion-summary.md)** - ✅ **Implementation Complete** - Comprehensive completion status
 - **[Monitoring Guide](docs/guides/monitoring-user-guide.md)** - How to access and read your dashboards
@@ -37,7 +38,7 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 - [SOPS Setup Guide](docs/security/sops-setup.md) - Encrypted secrets management implementation
 - [Secret Management Guide](docs/security/secret-management.md) - Secret lifecycle and rotation procedures
 - [Incident Response Guide](docs/security/incident-response.md) - Security incident response procedures
-- [Tailscale Hardening Guide](docs/security/tailscale-hardening.md) - Network security improvements
+- [Tailscale Hardening Guide](docs/security/tailscale-hardening.md) - **UPDATED**: Network security improvements and exposed credential remediation
 
 ### Testing & Validation
 - [Testing Suite](tests/README.md) - Comprehensive testing tools for GitOps resilience patterns
@@ -50,20 +51,26 @@ This project sets up a production-grade k3s cluster with Flux CD for GitOps, Lon
 - **GitOps Resilience Patterns** - Comprehensive resilience system preventing infrastructure lock-ups and ensuring reliable deployments
   - ✅ **Pre-commit validation infrastructure** - Kustomization build validation and syntax checking
   - ✅ **Immutable field conflict detection** - Advanced tool detecting breaking changes across 10+ resource types
+  - 🚧 **Git-Flux reconciliation monitoring** - Intelligent post-commit hook providing real-time Flux reconciliation feedback and deployment status visibility
   - ✅ **Reconciliation health monitoring** - Complete hybrid monitoring architecture with bulletproof core tier
   - ✅ **Alert rules for stuck reconciliations** - Comprehensive PrometheusRule resources for proactive detection
   - ✅ **GitOps health monitoring dashboard** - Grafana dashboard for Flux reconciliation visibility and performance tracking
   - ✅ **Emergency recovery procedures** - Manual intervention guides and operational runbooks
+  - 🚧 **System state backup and restore capabilities** - Automated backup of Flux configurations and cluster state (Task 4.3 in progress)
   - ✅ **Comprehensive troubleshooting documentation** - Recovery procedures for common failure scenarios
   - ✅ **Error pattern detection system** - Advanced controller monitoring 20+ error patterns with real-time event correlation
   - ✅ **Automated recovery system** - Complete error pattern detection and resource recreation automation
+  - ✅ **Longhorn Infrastructure Recovery** - Comprehensive distributed storage implementation with bulletproof architecture, GitOps integration, and monitoring
   - ✅ **Multi-node cluster expansion** - k3s2 worker node onboarding with automated storage integration (GitOps configuration ready, cloud-init enhanced, pre-onboarding validation scripts completed, monitoring integration completed, comprehensive onboarding orchestration completed, ready for deployment)
-  - 🚧 **Resource lifecycle management** - Blue-green deployment patterns for immutable resources
-  - 🚧 **Change impact analysis** - Dependency mapping and cascade effect analysis
-  - 🚧 **Staged deployment validation** - Multi-stage rollout with validation gates
+  - 🚧 **GitOps Update Management** - Comprehensive update management system with automated detection, safe patching, validation testing, and rollback capabilities (specification complete, core detection infrastructure in development with enhanced reliability patterns)
+  - 🚧 **Resource lifecycle management** - Blue-green deployment patterns for immutable resources (Tasks 5.1-5.4 planned)
+  - 🚧 **Change impact analysis** - Dependency mapping and cascade effect analysis (Tasks 6.2-6.4 planned, 6.1 complete)
+  - 🚧 **Staged deployment validation** - Multi-stage rollout with validation gates (Tasks 7.1-7.4 planned)
+  - 🚧 **Resource state consistency** - Atomic operations and conflict resolution (Tasks 8.1-8.4 planned)
+  - 🚧 **Comprehensive testing framework** - Chaos engineering and automated recovery testing (Tasks 9.1-9.4 planned)
   - 🔄 **Code quality improvements** - Enhanced validation scripts, documentation accuracy, and operational excellence
 
-See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/) and [k3s2 Node Onboarding Spec](.kiro/specs/k3s1-node-onboarding/) for detailed implementation roadmaps and [Validation Scripts](scripts/README.md) for current tooling.
+See [GitOps Resilience Patterns Spec](.kiro/specs/gitops-resilience-patterns/), [k3s2 Node Onboarding Spec](.kiro/specs/k3s1-node-onboarding/), and [GitOps Update Management Spec](.kiro/specs/gitops-update-management/) for detailed implementation roadmaps and [Validation Scripts](scripts/README.md) for current tooling.
 
 ## 🚀 Getting Started
 
@@ -221,6 +228,7 @@ When developing shell scripts, especially validation scripts, follow the compreh
 - **[Script Development Best Practices](.kiro/steering/08-script-development-best-practices.md)** - **CRITICAL**: Comprehensive best practices automatically applied when working with shell scripts
 - **[Validation Script Development](docs/troubleshooting/validation-script-development.md)** - Detailed lessons learned and troubleshooting patterns
 - **[Scripts README](scripts/README.md)** - Development checklist and usage examples
+- **[Git Hook Setup](docs/pre-commit-setup.md)** - Pre-commit validation and post-commit monitoring configuration
 
 ## 📄 License
 
@@ -292,6 +300,7 @@ tests/
 - Get cluster info: `kubectl cluster-info`
 - Validate kustomizations: `./scripts/validate-kustomizations.sh`
 - Check for immutable field conflicts: `./scripts/check-immutable-fields.sh`
+- Monitor Flux reconciliation: Automatic post-commit monitoring provides real-time deployment feedback
 
 ### MCP-Enhanced Operations (Recommended)
 - Check Flux installation: Use MCP Flux tools for comprehensive status with automatic guidance

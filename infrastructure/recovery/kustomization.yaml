@@ -14,6 +14,8 @@ resources:
   - dependency-analyzer-deployment.yaml
   - recovery-orchestration-controller-code.yaml
   - recovery-orchestration-deployment.yaml
+  - update-orchestrator-config.yaml
+  - update-orchestrator-deployment.yaml
 
 # Add common labels to all resources
 commonLabels:

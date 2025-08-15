@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+data:
+  database.yaml: |
+    host: postgres-service
+    port: 5432
+    database: app_db
+  redis.yaml: |
+    host: redis-service
+    port: 6379
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+type: Opaque
+data:
+  db-password: cGFzc3dvcmQ=
+  redis-password: cmVkaXNwYXNz
+  api-key: YXBpa2V5MTIz
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: longhorn
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: complex-app
+  labels:
+    app: web-app
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: application
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-password
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: api-key
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+        - name: data-volume
+          mountPath: /var/data
+        - name: secret-volume
+          mountPath: /etc/secrets
+          readOnly: true
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: app-data
+      - name: secret-volume
+        secret:
+          secretName: app-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app-service
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+spec:
+  selector:
+    app: web-app
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-app-ingress
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  tls:
+  - hosts:
+    - complex-app.local
+    secretName: app-tls-secret
+  rules:
+  - host: complex-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-app-service
+            port:
+              number: 80
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-tls-secret
+  namespace: complex-app
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTi0=
+  tls.key: LS0tLS1CRUdJTi0=
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+data:
+  values.yaml: |
+    prometheus:
+      prometheusSpec:
+        retention: 30d
+    grafana:
+      adminPassword: admin123
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monitoring-secrets
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+type: Opaque
+data:
+  grafana-password: YWRtaW4xMjM=

@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-app
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: test-app
+data:
+  config.yaml: |
+    database:
+      host: postgres
+      port: 5432
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: test-app
+type: Opaque
+data:
+  db-password: cGFzc3dvcmQ=  # password
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  namespace: test-app
+  labels:
+    app: web-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web
+        image: nginx:1.20
+        ports:
+        - containerPort: 80
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db-password
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: app-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app-service
+  namespace: test-app
+spec:
+  selector:
+    app: web-app
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-app-ingress
+  namespace: test-app
+spec:
+  rules:
+  - host: test-app.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-app-service
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - test-app.local
+    secretName: app-tls-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-tls-secret
+  namespace: test-app
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTi0=  # dummy cert
+  tls.key: LS0tLS1CRUdJTi0=  # dummy key

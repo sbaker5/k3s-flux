@@ -12,6 +12,14 @@ Complete recovery procedures for Flux CD control plane failures, including:
 - k3s-specific considerations
 - Common issues and solutions
 
+### [Longhorn Infrastructure Recovery](../longhorn-infrastructure-recovery-completion.md)
+✅ **IMPLEMENTATION COMPLETE** - Comprehensive distributed storage recovery implementation:
+- Namespace conflict resolution and kustomization fixes
+- Node configuration integration with validated disk mounts
+- GitOps integration with automated Flux reconciliation
+- Monitoring integration with bulletproof architecture
+- End-to-end validation and health verification
+
 ### [Validation Script Development](validation-script-development.md)
 Lessons learned and best practices for developing validation scripts, including:
 - Common pitfalls and solutions

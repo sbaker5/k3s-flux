@@ -43,7 +43,7 @@ This script is automatically run by:
 - 🔄 CI/CD pipeline step (future)
 - 🔧 Manual validation before commits
 
-See [Pre-commit Setup](../docs/pre-commit-setup.md) for hook installation instructions.
+See [Git Hook Setup](../docs/pre-commit-setup.md) for hook installation instructions.
 
 ## check-immutable-fields.sh
 
@@ -714,6 +714,61 @@ When developing or modifying shell scripts, especially validation scripts, follo
 - Include resource cleanup and timeout handling
 - Test with both passing and failing conditions
 - Provide progress indicators for long operations
+
+## setup-pre-commit.sh
+
+Git hook setup script that configures pre-commit validation and prepares for post-commit monitoring integration.
+
+### Usage
+
+```bash
+# Install pre-commit validation hook
+./scripts/setup-pre-commit.sh
+
+# Make executable if needed
+chmod +x scripts/setup-pre-commit.sh
+```
+
+### What it installs
+
+- ✅ **Pre-commit validation hook** - YAML syntax, Kustomization builds, immutable field detection
+- ✅ **Hook configuration** - Proper permissions and execution setup
+- 🚧 **Post-commit monitoring preparation** - Framework for git-flux-reconciliation-monitor integration (Task 1 in progress)
+
+### Integration
+
+This script prepares the repository for:
+- ✅ **Pre-commit validation** - Immediate validation before commits
+- 🚧 **Post-commit monitoring** - Real-time Flux reconciliation feedback (in development)
+- ✅ **MCP tool integration** - Enhanced monitoring and troubleshooting capabilities
+
+See [Git Hook Setup](../docs/pre-commit-setup.md) for complete configuration details.
+
+## setup-git-flux-monitor.sh (🚧 In Development)
+
+Setup script for the git-flux-reconciliation-monitor feature that provides real-time Flux reconciliation monitoring after git commits. Currently in development - working on Kiro agent hook configuration (Task 1).
+
+### Planned Usage
+
+```bash
+# Install git-flux reconciliation monitor
+./scripts/setup-git-flux-monitor.sh
+
+# Configure monitoring behavior
+./scripts/setup-git-flux-monitor.sh --configure
+
+# Test monitor installation
+./scripts/setup-git-flux-monitor.sh --test
+```
+
+### Planned Features
+
+- 🚧 **Post-commit hook installation** - Automatic monitoring after git push
+- 🚧 **MCP tool integration** - Uses MCP Flux tools for enhanced monitoring
+- 🚧 **Configuration management** - Repository-specific monitoring settings
+- 🚧 **Real-time feedback** - Terminal-based reconciliation status updates
+
+See [Git-Flux Reconciliation Monitor](../docs/git-flux-reconciliation-monitor.md) for detailed specifications.
 
 ### Script Development Checklist
 

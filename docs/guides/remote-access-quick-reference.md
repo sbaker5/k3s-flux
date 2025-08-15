@@ -10,7 +10,7 @@
 
 ## 📱 Remote Access Commands
 
-### ✅ Verified Working Method (January 2025)
+### ✅ Verified Working Method (August 2025)
 
 **Key Discovery**: kubectl port-forward works locally through k3s-remote context!
 

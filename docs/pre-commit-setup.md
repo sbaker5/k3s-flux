@@ -1,9 +1,10 @@
-# Pre-commit Hook Setup
+# Git Hook Setup
 
-This repository uses a simple Git pre-commit hook to validate infrastructure changes before they're committed.
+This repository uses Git hooks to enhance the GitOps development experience with validation before commits and monitoring after commits.
 
-## What Gets Validated
+## Git Hook Features
 
+### Pre-commit Validation
 Every commit automatically runs:
 
 - ✅ **YAML Syntax Validation** - Validates YAML syntax and structure
@@ -11,6 +12,15 @@ Every commit automatically runs:
 - ✅ **Immutable Field Change Detection** - Prevents changes to immutable Kubernetes fields
 - ✅ **Flux Health Check Validation** - Verifies Flux system is healthy before committing
 - ✅ **Kubernetes Dry-run Validation** - Validates resources against the cluster if available
+
+### Post-commit Monitoring (🚧 In Development)
+After successful commits, the git-flux-reconciliation-monitor will provide (currently in development - Task 1 in progress):
+
+- 🚧 **Real-time Reconciliation Status** - Automatic monitoring of Flux reconciliation after git push
+- 🚧 **Resource Impact Visibility** - Shows which Kustomizations and HelmReleases are being reconciled
+- 🚧 **Error Detection and Reporting** - Detailed error information when reconciliation fails
+- 🚧 **Dependency Chain Tracking** - Displays reconciliation order and dependency relationships
+- 🚧 **MCP Tool Integration** - Uses MCP Flux tools for enhanced monitoring and troubleshooting
 
 ### Validation Warnings
 
@@ -24,8 +34,11 @@ The validation may show deprecation warnings that don't block commits but should
 ### Automatic Setup (Recommended)
 
 ```bash
-# Use the setup script to configure the pre-commit hook
+# Use the setup script to configure pre-commit validation
 ./scripts/setup-pre-commit.sh
+
+# Post-commit monitoring setup (when available)
+# Will be configured automatically as part of the git-flux-reconciliation-monitor feature
 ```
 
 ### Manual Setup
@@ -50,13 +63,26 @@ ls -la .git/hooks/pre-commit
 
 ## Usage
 
-Once installed, hooks run automatically on every `git commit`. 
+### Pre-commit Validation
+Pre-commit hooks run automatically on every `git commit`:
 
-### Normal Workflow
 ```bash
 git add .
 git commit -m "update infrastructure"
-# Hooks run automatically - commit succeeds if all pass
+# Pre-commit validation runs automatically - commit succeeds if all pass
+```
+
+### Post-commit Monitoring (🚧 In Development)
+After successful commits and pushes, automatic monitoring provides real-time feedback:
+
+```bash
+git push origin main
+# Post-commit hook automatically monitors Flux reconciliation
+# Real-time status updates show:
+# - Which resources are being reconciled
+# - Current reconciliation phase
+# - Success/failure status
+# - Detailed error information if issues occur
 ```
 
 ### If Validation Fails
@@ -71,9 +97,19 @@ git commit -m "fixed change"
 ```
 
 ### Skip Hooks (Emergency Only)
+
+⚠️ **CRITICAL**: **NEVER use `git commit --no-verify` unless it's a genuine emergency.**
+
+Pre-commit hooks exist for security and quality validation. They catch secrets, syntax errors, and breaking changes before they reach the repository. Bypassing validation defeats the entire purpose of GitOps safety measures.
+
+**Emergency bypass procedure (use sparingly):**
+1. Document why bypass is necessary in commit message
+2. Create immediate follow-up task to fix the underlying issue  
+3. Review what validation failed and improve the process
+
 ```bash
-# Only use in emergencies - bypasses all validation
-git commit -m "emergency fix" --no-verify
+# Only use in genuine emergencies - bypasses all validation
+git commit -m "emergency fix: [explain why bypass needed]" --no-verify
 ```
 
 ## What This Prevents

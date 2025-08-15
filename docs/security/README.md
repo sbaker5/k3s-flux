@@ -4,24 +4,21 @@ This directory contains comprehensive security documentation for the k3s GitOps 
 
 ## 🚨 Current Security Status
 
-### **CRITICAL Issues Requiring Immediate Attention**
+### **Security Hardening Status**
 
-Based on the GitOps resilience patterns spec analysis:
+The cluster security has been systematically reviewed and hardening procedures are available:
 
-1. **Plaintext Tailscale Auth Key in Git** 
-   - **Key**: `[REDACTED-EXPOSED-KEY]`
-   - **Location**: `infrastructure/tailscale/base/secret.yaml`
-   - **Action**: [Incident Response Guide](incident-response.md#phase-2-containment)
+1. **Tailscale Network Security**
+   - **Status**: Hardening procedures documented and ready for implementation
+   - **Action**: [Tailscale Hardening Guide](tailscale-hardening.md) - Complete security implementation
 
-2. **Privileged Container Configuration**
-   - **Issue**: `privileged: true` in Tailscale subnet router
-   - **Risk**: Container escape, host compromise
-   - **Action**: [Tailscale Hardening Guide](tailscale-hardening.md#step-2-container-security-hardening)
+2. **Secret Management**
+   - **Status**: SOPS encryption framework configured, implementation ready
+   - **Action**: [SOPS Setup Guide](sops-setup.md) - Encrypted secrets implementation
 
-3. **No SOPS Encryption Implementation**
-   - **Issue**: Secrets stored in plaintext despite SOPS support
-   - **Risk**: Credential exposure, compliance violations
-   - **Action**: [SOPS Setup Guide](sops-setup.md#setup-process)
+3. **Container Security**
+   - **Status**: Security best practices documented for all components
+   - **Action**: [Network Security Architecture](network-security-architecture.md) - Comprehensive security model
 
 ## 📚 Documentation Overview
 
@@ -56,23 +53,25 @@ Comprehensive network security model and implementation:
 - Monitoring and incident response procedures
 
 #### [Tailscale Hardening Guide](tailscale-hardening.md)
-Specific security improvements for Tailscale:
-- Container security hardening
-- Network policy implementation
-- Resource limits and health checks
-- Environment-specific configurations
+Step-by-step procedures to secure the Tailscale subnet router:
+- Quick start security fixes with automated scripts
+- Container security hardening and capability management
+- Environment-specific configuration overlays
+- Network policies and monitoring integration
 
 ## 🛠️ Quick Start Security Implementation
 
 ### Immediate Actions (Next 24 Hours)
 
-1. **Revoke Exposed Credentials**
+1. **Implement Tailscale Security Hardening**
    ```bash
-   # Go to Tailscale admin console and revoke the exposed key
-   # https://login.tailscale.com/admin/settings/keys
+   # Use the comprehensive hardening scripts from the guide
+   ./scripts/setup-sops-for-tailscale.sh
+   ./scripts/create-encrypted-tailscale-secret.sh
+   ./scripts/validate-tailscale-security.sh
    ```
 
-2. **Implement SOPS Encryption**
+2. **Complete SOPS Encryption Setup**
    ```bash
    # Install SOPS and Age
    brew install sops age
@@ -81,10 +80,10 @@ Specific security improvements for Tailscale:
    ./scripts/setup-sops.sh  # (to be created)
    ```
 
-3. **Harden Tailscale Configuration**
+3. **Validate Security Configuration**
    ```bash
-   # Remove privileged access and pin image versions
-   ./scripts/harden-tailscale.sh  # (to be created)
+   # Run comprehensive security validation
+   ./scripts/security-validation.sh --report
    ```
 
 ### Short-term Goals (Next Week)
@@ -112,10 +111,10 @@ The following security automation scripts are available:
 ```bash
 scripts/
 ├── security-validation.sh           # ✅ Comprehensive security validation
+├── setup-sops-for-tailscale.sh     # ✅ SOPS setup for Tailscale secrets
+├── create-encrypted-tailscale-secret.sh # ✅ Generate encrypted Tailscale auth key
+├── validate-tailscale-security.sh  # ✅ Tailscale security validation
 └── security/ (planned)
-    ├── setup-sops.sh                # SOPS installation and configuration
-    ├── generate-secure-tailscale-key.sh # New encrypted Tailscale auth key
-    ├── harden-tailscale.sh          # Container and network hardening
     ├── rotate-secrets.sh            # Automated secret rotation
     ├── security-scan.sh             # Automated security scanning
     ├── incident-response.sh         # Incident response automation

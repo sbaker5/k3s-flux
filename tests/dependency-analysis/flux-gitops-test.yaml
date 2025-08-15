@@ -1,0 +1,111 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: infrastructure-repo
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+spec:
+  interval: 1m
+  url: https://github.com/example/infrastructure
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-core
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+  annotations:
+    kustomize.toolkit.fluxcd.io/reconcile: "true"
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure-repo
+  path: "./infrastructure/core"
+  prune: true
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure-storage
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+  annotations:
+    kustomize.toolkit.fluxcd.io/reconcile: "true"
+spec:
+  interval: 10m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure-repo
+  path: "./infrastructure/storage"
+  dependsOn:
+  - name: infrastructure-core
+  prune: true
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-production
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: application
+  annotations:
+    kustomize.toolkit.fluxcd.io/reconcile: "true"
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure-repo
+  path: "./apps/production"
+  dependsOn:
+  - name: infrastructure-core
+  prune: true
+  wait: true
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: monitoring-stack
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+    app.kubernetes.io/component: infrastructure
+  annotations:
+    helm.toolkit.fluxcd.io/reconcile: "true"
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "45.x"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  valuesFrom:
+  - kind: ConfigMap
+    name: monitoring-config
+  - kind: Secret
+    name: monitoring-secrets
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/part-of: k3s-flux
+spec:
+  interval: 24h
+  url: https://prometheus-community.github.io/helm-charts

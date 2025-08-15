@@ -318,7 +318,12 @@ spec:
    - `feature/*`: New features
    - `bugfix/*`: Bug fixes
 
-2. **Commit Conventions**
+2. **Git Hook Integration**
+   - **Pre-commit validation**: Automatic YAML syntax, Kustomization build, and immutable field validation
+   - **Post-commit monitoring** (🚧 in development): Real-time Flux reconciliation status after git push
+   - **MCP tool integration**: Enhanced monitoring and troubleshooting capabilities
+
+3. **Commit Conventions**
    ```
    type(scope): description
    

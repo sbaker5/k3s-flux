@@ -62,6 +62,7 @@
   - Validate RBAC policies apply correctly to new node
   - Test Tailscale VPN connectivity to k3s2
   - Implement security posture validation scripts
+  - **SECURITY UPDATE**: Tailscale hardening guide streamlined with comprehensive step-by-step procedures and automated scripts
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 - [x] 8. Create post-onboarding health verification system

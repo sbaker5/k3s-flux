@@ -1,0 +1,193 @@
+# Dependency Analysis Configuration
+#
+# This configuration file defines how the dependency analyzer should
+# identify and categorize different types of resource relationships.
+
+# Resource reference patterns
+# These patterns define how to identify references between resources
+reference_patterns:
+  # Direct field references
+  field_references:
+    - field: "spec.serviceName"
+      target_kind: "Service"
+      relation_type: "references"
+
+    - field: "spec.template.spec.serviceAccountName"
+      target_kind: "ServiceAccount"
+      relation_type: "references"
+
+    - field: "spec.rules[].host"
+      target_kind: "Service"
+      relation_type: "routes_to"
+
+    - field: "spec.tls[].secretName"
+      target_kind: "Secret"
+      relation_type: "references"
+
+  # Volume references
+  volume_references:
+    - volume_type: "configMap"
+      target_kind: "ConfigMap"
+      relation_type: "mounts"
+
+    - volume_type: "secret"
+      target_kind: "Secret"
+      relation_type: "mounts"
+
+    - volume_type: "persistentVolumeClaim"
+      target_kind: "PersistentVolumeClaim"
+      relation_type: "mounts"
+
+  # Environment variable references
+  env_references:
+    - env_type: "configMapRef"
+      target_kind: "ConfigMap"
+      relation_type: "references"
+
+    - env_type: "secretRef"
+      target_kind: "Secret"
+      relation_type: "references"
+
+# Selector-based relationships
+# These define implicit relationships through label selectors
+selector_relationships:
+  - source_kinds: ["Service", "Deployment", "ReplicaSet", "DaemonSet"]
+    target_kinds: ["Pod"]
+    relation_type: "selects"
+
+  - source_kinds: ["NetworkPolicy"]
+    target_kinds: ["Pod"]
+    relation_type: "applies_to"
+
+# Owner reference relationships
+owner_relationships:
+  - relation_type: "owns"
+    description: "Resource created and managed by another resource"
+
+# Flux-specific relationships
+flux_relationships:
+  - field: "spec.sourceRef"
+    target_kinds: ["GitRepository", "HelmRepository", "Bucket", "OCIRepository"]
+    relation_type: "sources_from"
+
+  - field: "spec.dependsOn"
+    target_kinds: ["Kustomization", "HelmRelease"]
+    relation_type: "depends_on"
+
+  - field: "spec.chart.spec.sourceRef"
+    target_kinds: ["HelmRepository", "GitRepository"]
+    relation_type: "sources_from"
+
+# Risk assessment rules
+# These rules help categorize the impact level of changes
+risk_assessment:
+  high_risk_resources:
+    - "Deployment"
+    - "StatefulSet"
+    - "DaemonSet"
+    - "Service"
+    - "Ingress"
+    - "PersistentVolume"
+    - "StorageClass"
+
+  medium_risk_resources:
+    - "ConfigMap"
+    - "Secret"
+    - "ServiceAccount"
+    - "Role"
+    - "RoleBinding"
+
+  low_risk_resources:
+    - "Pod"
+    - "ReplicaSet"
+    - "Job"
+    - "CronJob"
+
+  # Relationship types that indicate high impact
+  high_impact_relations:
+    - "owns"
+    - "selects"
+    - "depends_on"
+
+  medium_impact_relations:
+    - "references"
+    - "mounts"
+    - "sources_from"
+
+  low_impact_relations:
+    - "routes_to"
+    - "applies_to"
+
+# Visualization settings
+visualization:
+  # Node colors by resource kind
+  node_colors:
+    Deployment: "#4A90E2"
+    StatefulSet: "#7B68EE"
+    DaemonSet: "#9370DB"
+    Service: "#50C878"
+    Ingress: "#32CD32"
+    ConfigMap: "#FFD700"
+    Secret: "#FF6B6B"
+    PersistentVolumeClaim: "#FF69B4"
+    Pod: "#D3D3D3"
+    HelmRelease: "#FFA500"
+    Kustomization: "#20B2AA"
+    GitRepository: "#8FBC8F"
+
+  # Edge colors by relationship type
+  edge_colors:
+    owns: "#FF0000"
+    references: "#0000FF"
+    selects: "#008000"
+    depends_on: "#800080"
+    mounts: "#FFA500"
+    sources_from: "#008B8B"
+
+  # Layout settings
+  layout:
+    algorithm: "spring" # spring, circular, hierarchical
+    node_size: 1000
+    font_size: 8
+    edge_width: 2
+    figure_size: [16, 12]
+
+# Analysis settings
+analysis:
+  # Maximum depth for cascade analysis
+  max_cascade_depth: 5
+
+  # Ignore these resource types in analysis
+  ignored_resource_types:
+    - "Event"
+    - "EndpointSlice"
+    - "Lease"
+
+  # Ignore these namespaces
+  ignored_namespaces:
+    - "kube-node-lease"
+    - "kube-public"
+
+  # Include these additional fields in dependency analysis
+  additional_reference_fields:
+    - "spec.dataSource"
+    - "spec.storageClassName"
+    - "spec.ingressClassName"
+    - "spec.priorityClassName"
+
+# Report settings
+reporting:
+  # Include these sections in reports
+  sections:
+    - "summary"
+    - "dependency_breakdown"
+    - "high_risk_resources"
+    - "circular_dependencies"
+    - "orphaned_resources"
+    - "recommendations"
+
+  # Maximum items to show in each section
+  max_items_per_section: 20
+
+  # Include detailed relationship information
+  include_relationship_details: true

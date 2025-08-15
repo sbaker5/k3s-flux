@@ -6,6 +6,7 @@ Maintenance, troubleshooting, and keeping things running.
 
 - **[Monitoring System Cleanup](monitoring-system-cleanup.md)** - Fix monitoring issues and maintenance
 - **[Dependency-Aware Cleanup](dependency-aware-cleanup.md)** - Clean up stuck resources safely
+- **[GitOps Update Management](gitops-update-management.md)** - 🚧 **Core Detection Infrastructure In Development** - Comprehensive update management operations
 
 ## Other Operations Docs
 - **[Flux Recovery Guide](../troubleshooting/flux-recovery-guide.md)** - Fix GitOps issues

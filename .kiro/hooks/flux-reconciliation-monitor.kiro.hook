@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "Flux Reconciliation Monitor",
+  "description": "Automatically monitors Flux reconciliation status after changes are pushed to GitOps directories. Provides real-time feedback on Kustomization and HelmRelease reconciliation using MCP Flux tools.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "clusters/**/*.yaml",
+      "clusters/**/*.yml",
+      "infrastructure/**/*.yaml",
+      "infrastructure/**/*.yml",
+      "apps/**/*.yaml",
+      "apps/**/*.yml",
+      "**/kustomization.yaml",
+      "**/kustomization.yml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "GitOps configuration files have been modified in this Flux-managed Kubernetes cluster. Please monitor the Flux reconciliation status using MCP Flux tools and provide real-time feedback.\n\n**Your Task:**\n1. **Verify Flux Availability**: Use `mcp_flux_get_flux_instance` to check if Flux controllers are running\n2. **Discover Affected Resources**: Use `mcp_flux_get_kubernetes_resources` to identify Kustomizations and HelmReleases that may be affected by the changes\n3. **Monitor Reconciliation**: Poll resource status using MCP Flux tools and track reconciliation progress\n4. **Report Status**: Provide structured output showing:\n   - Resource names, namespaces, and current phases\n   - Dependency chains (from dependsOn fields)\n   - Error messages and diagnostic information if reconciliation fails\n   - Success summary when reconciliation completes\n\n**MCP Tools to Use:**\n- `mcp_flux_get_flux_instance` - Check Flux installation status\n- `mcp_flux_get_kubernetes_resources` - Query Kustomizations and HelmReleases\n- `mcp_flux_reconcile_flux_kustomization` - Trigger reconciliation if needed\n- `mcp_flux_reconcile_flux_helmrelease` - Trigger HelmRelease reconciliation\n- `mcp_flux_search_flux_docs` - Get contextual help for errors\n- `mcp_kubernetes_kubectl_get` - Get additional Kubernetes events\n\n**Configuration:**\n- Monitor for up to 5 minutes (300 seconds) by default\n- Poll every 2 seconds for status updates\n- Show dependency relationships when multiple resources are reconciling\n- Provide actionable error messages with suggestions\n- Only monitor resources in flux-system, monitoring, longhorn-system, and application namespaces\n\n**Output Format:**\nProvide clear, structured output with:\n- 🔄 for resources currently reconciling\n- ✅ for successfully reconciled resources\n- ❌ for failed reconciliation with error details\n- ⏳ for resources waiting for dependencies\n- 📊 Summary with counts and timing information\n\n**Error Handling:**\n- If cluster is unreachable, provide informative message and exit gracefully\n- If Flux controllers are not running, suggest checking controller status\n- For reconciliation failures, extract error messages and provide contextual help\n- Handle timeout scenarios by showing current status\n\n**Branch Filtering:**\nOnly monitor reconciliation if changes are pushed to main/master branches (check git context if available).\n\nStart monitoring immediately and provide real-time updates as reconciliation progresses."
+  }
+}

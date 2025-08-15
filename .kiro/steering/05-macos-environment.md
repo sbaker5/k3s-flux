@@ -65,9 +65,19 @@ The pre-commit hooks use a multi-step validation strategy. Understanding this he
    - These are valid but kubectl dry-run may fail if CRDs aren't installed
 
 ### Bypassing Validation (When Necessary)
+
+⚠️ **CRITICAL**: **NEVER use `git commit --no-verify` unless it's a genuine emergency.**
+
+Pre-commit hooks exist for security and quality validation. Bypassing validation defeats the entire purpose of GitOps safety measures.
+
+**Emergency bypass procedure (use sparingly):**
+1. Document why bypass is necessary in commit message
+2. Create immediate follow-up task to fix the underlying issue
+3. Review what validation failed and improve the process
+
 ```bash
-# Only use when you're confident the YAML is correct
-git commit --no-verify -m "message"
+# Only use in genuine emergencies - bypasses all validation
+git commit --no-verify -m "emergency fix: [explain why bypass needed]"
 
 # Better: Fix the validation script to handle macOS properly
 ```

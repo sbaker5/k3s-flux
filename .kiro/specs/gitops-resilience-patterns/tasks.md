@@ -91,7 +91,7 @@
     - Create utilities for safe resource recreation with zero downtime
     - Implement validation and rollback mechanisms
     - _Requirements: 2.2, 6.1_
-  - [ ] 5.3 Implement dependency-aware update ordering
+  - [x] 5.3 Implement dependency-aware update ordering
     - Build system to analyze and order resource updates by dependencies
     - Create update orchestration with proper sequencing
     - _Requirements: 2.3, 6.2_
@@ -101,7 +101,7 @@
     - _Requirements: 2.4, 6.3_
 
 - [ ] 6. Build change impact analysis system
-  - [ ] 6.1 Create resource dependency mapping tools
+  - [x] 6.1 Create resource dependency mapping tools
     - Build tools to analyze and visualize resource dependencies
     - Create dependency graph generation and analysis
     - _Requirements: 8.1, 8.3_
@@ -303,6 +303,34 @@
     - **EXTENSIBILITY**: Create plugin architecture for other specs to add domain-specific commands (monitoring, storage, etc.)
     - _Requirements: Code Quality, Maintainability, Security, Reliability, Performance_
     - _Note: This task OWNS the emergency CLI - other specs add features after this refactoring_
+  - [ ] 11.10 Refactor update orchestrator CLI script for improved maintainability and robustness **[NEW - CRITICAL CODE QUALITY ISSUES]**
+    - **CRITICAL ARCHITECTURE**: Monolithic main() function with 100+ lines violates Single Responsibility Principle - extract command routing, argument parsing, and execution logic into separate functions
+    - **CRITICAL ERROR HANDLING**: Inconsistent exit code usage - functions return 0/1 but script uses exit codes 0-4 documented in usage, creating mismatch between documentation and implementation
+    - **HIGH CODE DUPLICATION**: Python command building pattern repeated 6+ times across functions (lines 200-220, 250-270, 300-320, etc.) - extract into reusable build_python_command() function
+    - **HIGH MAINTAINABILITY**: Complex argument parsing logic mixed with command execution in main() - separate into parse_global_args() and route_command() functions
+    - **HIGH RELIABILITY**: No validation of Python script existence or executability before building commands - could fail silently with confusing error messages
+    - **MEDIUM PERFORMANCE**: Inefficient resource loading with multiple file operations and temporary file creation - optimize with streaming or in-memory processing where possible
+    - **MEDIUM SECURITY**: No input sanitization for file paths and resource specifications - potential path traversal vulnerability in load_resources() function
+    - **MEDIUM TESTABILITY**: Hard-coded paths and direct Python subprocess calls make unit testing difficult - needs dependency injection pattern
+    - **LOW CONSISTENCY**: Mixed error handling patterns - some functions use return codes, others use exit, some print errors before returning
+    - **LOW DOCUMENTATION**: Complex functions like load_resources() and show_plan_summary() lack inline documentation explaining their logic flow
+    - **DESIGN PATTERN**: Should implement Command pattern for different operations (plan, execute, validate, etc.) to improve extensibility and testing
+    - **DESIGN PATTERN**: Should implement Strategy pattern for different resource loading methods (file, directory, kustomization, stdin)
+    - _Requirements: Code Quality, Maintainability, Security, Reliability, Performance, Testability_
+  - [ ] 11.9 Refactor dependency analyzer script for improved code quality and maintainability **[NEW - PYTHON CODE QUALITY ISSUES]**
+    - **CRITICAL ARCHITECTURE**: Missing proper error handling for subprocess calls - kubectl commands can fail silently (lines 85-95, 105-115)
+    - **CRITICAL PERFORMANCE**: Inefficient resource loading - loads ALL cluster resources regardless of analysis scope (lines 75-105)
+    - **HIGH MAINTAINABILITY**: Monolithic class with 400+ lines - violates Single Responsibility Principle, should be split into ResourceLoader, DependencyExtractor, GraphAnalyzer, ReportGenerator
+    - **HIGH CODE SMELL**: Complex nested loops and conditionals in _analyze_spec_references method (lines 180-280) - needs extraction into smaller, focused methods
+    - **HIGH RELIABILITY**: No validation of loaded YAML documents - malformed YAML could cause silent failures or crashes (lines 125-135)
+    - **MEDIUM PERFORMANCE**: Redundant graph traversal in impact/dependency chain analysis - could be optimized with memoization (lines 285-330)
+    - **MEDIUM SECURITY**: No input sanitization for file paths and resource names - potential path traversal vulnerability (lines 115-125)
+    - **MEDIUM TESTABILITY**: Hard-coded subprocess calls make unit testing difficult - needs dependency injection for kubectl interface
+    - **LOW DOCUMENTATION**: Missing docstrings for complex private methods and unclear variable names (resource_ref vs other_ref)
+    - **LOW CONSISTENCY**: Inconsistent error handling patterns - some methods print warnings, others raise exceptions, some fail silently
+    - **DESIGN PATTERN**: Should implement Strategy pattern for different resource loading strategies (cluster vs manifest vs mixed)
+    - **DESIGN PATTERN**: Should implement Observer pattern for progress reporting during long-running analysis operations
+    - _Requirements: Code Quality, Maintainability, Performance, Security, Reliability, Testability_
 
 - [ ] 12. Security Hardening and Secret Management **[URGENT - ACTIVE SECURITY BREACH]**
   - [ ] 12.1 Implement SOPS encryption for Tailscale secrets **[CRITICAL - SECURITY VULNERABILITY - ACTIVE]**

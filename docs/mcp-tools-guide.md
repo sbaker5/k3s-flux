@@ -234,6 +234,7 @@ kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address
 - **Resource Management**: Use MCP tools for enhanced filtering and selection with best practices
 - **Monitoring Operations**: Use MCP tools for monitoring system health checks with automated analysis
 - **Interactive Operations**: Benefit from always-available comprehensive Kubernetes operations guidance
+- **Git Hook Integration**: MCP tools are automatically used by the git-flux-reconciliation-monitor for post-commit monitoring
 
 ### When to Use Traditional CLI
 - **Simple Operations**: Basic kubectl commands for quick checks
@@ -256,6 +257,16 @@ kubectl port-forward -n monitoring svc/monitoring-core-grafana 3000:80 --address
 - Maintain remote access procedures for emergency situations
 
 ## Advanced Troubleshooting with MCP Tools
+
+### Git Hook Integration
+
+The git-flux-reconciliation-monitor feature (🚧 in development - Task 1 in progress) leverages MCP tools to provide automatic post-commit monitoring:
+
+- **Automatic Status Monitoring**: Uses `mcp_flux_get_kubernetes_resources` to track Kustomization and HelmRelease status
+- **Real-time Updates**: Continuously monitors reconciliation progress using MCP Flux tools
+- **Error Detection**: Uses `mcp_flux_search_flux_docs` to provide contextual help for reconciliation failures
+- **Dependency Tracking**: Analyzes `dependsOn` relationships from MCP resource queries
+- **Integrated Troubleshooting**: Seamlessly transitions from monitoring to interactive troubleshooting
 
 ### Systematic Flux Troubleshooting
 

@@ -117,11 +117,12 @@ graph TB
 **Dependencies**: None (core infrastructure)
 **Storage**: Ephemeral (no persistent storage required)
 
-### Storage Infrastructure (Longhorn)
+### Storage Infrastructure (Longhorn) - ✅ IMPLEMENTATION COMPLETE
 
 **Purpose**: Provides distributed block storage for stateful workloads
 **Namespace**: `longhorn-system`
 **Components**: 19 pods including managers, CSI drivers, UI, and engine images
+**Status**: ✅ **Longhorn Infrastructure Recovery Complete** - Comprehensive implementation with bulletproof architecture
 
 **Architecture**:
 ```
@@ -185,6 +186,68 @@ graph TB
 
 **Dependencies**: None (core tier), Longhorn (long-term tier)
 **Storage**: EmptyDir (core), PVC (long-term)
+
+### GitOps Update Management System - 🚧 SPECIFICATION COMPLETE
+
+**Purpose**: Provides comprehensive, automated update management for all cluster components
+**Status**: 🚧 **Core Detection Infrastructure In Progress**
+**Scope**: k3s, Flux controllers, Longhorn, NGINX Ingress, and all Helm charts
+
+**Architecture**:
+```
+┌─────────────────────────────────────────────────────────────┐
+│              GitOps Update Management System               │
+├─────────────────────────────────────────────────────────────┤
+│  Detection Engine                                           │
+│  ├─ Component Version Scanners (k3s, Flux, Longhorn, etc.) │
+│  ├─ Security Update Prioritization                         │
+│  ├─ Breaking Change Analysis                               │
+│  └─ Structured Report Generation                           │
+│                                                             │
+│  Update Orchestrator                                        │
+│  ├─ Dependency-Aware Update Ordering                       │
+│  ├─ Maintenance Mode Controller                            │
+│  ├─ Progress Tracking & State Management                   │
+│  └─ Automatic Rollback Triggers                            │
+│                                                             │
+│  Backup & Restore System                                   │
+│  ├─ Git State Backup (commit hashes, branch states)       │
+│  ├─ Configuration Backup (ConfigMaps, Secrets)             │
+│  ├─ Longhorn Data Snapshots                               │
+│  └─ Cluster State Export                                   │
+│                                                             │
+│  Validation Engine                                          │
+│  ├─ Flux Controller Health Validation                      │
+│  ├─ Storage Functionality Testing                          │
+│  ├─ Network Connectivity Verification                      │
+│  ├─ Application Health Checks                              │
+│  └─ Comprehensive Pass/Fail Reporting                      │
+│                                                             │
+│  Impact Analysis & Audit                                   │
+│  ├─ Application Dependency Mapping                         │
+│  ├─ Breaking Change Detection                              │
+│  ├─ Migration Recommendation Engine                        │
+│  └─ Historical Audit Trails                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Features**:
+- **Automated Detection**: Scans all components for available updates with security prioritization
+- **Safe Application**: Pre-update backups, health validation, and dependency-aware ordering
+- **Comprehensive Validation**: Tests Flux, storage, networking, and application functionality
+- **Reliable Rollback**: Git-based recovery with automatic validation and emergency procedures
+- **Maintenance Windows**: Scheduled updates with deployment prevention and user notifications
+- **Impact Analysis**: Identifies affected applications and provides migration recommendations
+- **Audit Trails**: Complete logging with Git commit tracking and searchable history
+
+**Integration Points**:
+- **GitOps Resilience Patterns**: Leverages existing validation and error detection infrastructure
+- **Longhorn Infrastructure**: Uses snapshot capabilities for data preservation during updates
+- **Monitoring System**: Exposes update metrics and provides dashboard visualization
+- **Flux Controllers**: Integrates with GitOps workflows for configuration management
+
+**Dependencies**: GitOps Control Plane, Storage Infrastructure (for backups)
+**Managed By**: Planned Flux Kustomization integration
 
 ### Network Architecture
 
@@ -405,6 +468,7 @@ sequenceDiagram
 
 ### Planned Enhancements
 - **Multi-node**: k3s2 worker node onboarding (✅ **Ready for deployment** - infrastructure complete, enhanced cloud-init prepared, comprehensive validation suite completed)
+- **GitOps Update Management**: Comprehensive update management system (🚧 **Core detection infrastructure in progress** - automated detection, safe patching, validation testing, and rollback capabilities)
 - **KubeVirt**: VM workloads on Kubernetes
 - **Service mesh**: Istio or Linkerd for advanced networking
 - **External secrets**: SOPS or External Secrets Operator
@@ -420,7 +484,8 @@ sequenceDiagram
 
 - [Implementation Plan](implementation-plan.md) - Current implementation status
 - [GitOps Resilience Patterns](gitops-resilience-patterns.md) - Resilience and recovery patterns
-- [Longhorn Setup](longhorn-setup.md) - Storage system configuration
-- [Remote Access Guide](tailscale-remote-access-setup.md) - Secure remote access setup
-- [Monitoring Guide](monitoring-system-cleanup.md) - Bulletproof monitoring architecture
+- [GitOps Update Management](gitops-update-management.md) - Comprehensive update management system
+- [Longhorn Setup](setup/longhorn-setup.md) - Storage system configuration
+- [Remote Access Guide](setup/tailscale-remote-access-setup.md) - Secure remote access setup
+- [Monitoring Guide](operations/monitoring-system-cleanup.md) - Bulletproof monitoring architecture
 - [Troubleshooting Guide](troubleshooting/flux-recovery-guide.md) - Recovery procedures

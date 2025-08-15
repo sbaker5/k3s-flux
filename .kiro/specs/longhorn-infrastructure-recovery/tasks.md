@@ -75,7 +75,7 @@
   - ✅ Monitoring uses ephemeral storage by design - no PVCs needed
   - _Requirements: 5.2, 5.3_
 
-- [ ] 11. Address Longhorn node health warnings (Optional)
+- [x] 11. Address Longhorn node health warnings (Optional)
   - Install missing nfs-common package on k3s1 node if NFS features needed
   - Address multipathd configuration issue if multipath storage is required
   - Load required kernel modules (dm_crypt) if encryption features are needed

@@ -1,5 +1,32 @@
 # Workspace Rules for Planning and Task Tracking
 
+## ⚠️ CRITICAL DEVELOPMENT RULES
+
+### Git Commit Validation
+**NEVER use `git commit --no-verify` unless it's a genuine emergency.**
+
+- Pre-commit hooks exist for security and quality validation
+- They catch secrets, syntax errors, and breaking changes before they reach the repository
+- Bypassing validation defeats the entire purpose of GitOps safety measures
+- If validation fails, fix the issue rather than bypassing it
+
+**Emergency bypass procedure (use sparingly):**
+1. Document why bypass is necessary in commit message
+2. Create immediate follow-up task to fix the underlying issue
+3. Review what validation failed and improve the process
+
+### Documentation References
+
+For comprehensive information beyond these workspace rules, reference:
+
+- **Security**: `docs/security/` - Incident response, hardening guides, secret management
+- **Setup Guides**: `docs/setup/` - Initial cluster setup, component installation
+- **Troubleshooting**: `docs/troubleshooting/` - Systematic debugging procedures
+- **Architecture**: `docs/architecture-overview.md` - System design and patterns
+- **Monitoring**: `docs/monitoring/` - Observability and alerting configuration
+- **Scripts**: `scripts/` - Automation tools and validation utilities
+- **Specs**: `.kiro/specs/` - Feature specifications and implementation plans
+
 ## Planning and Documentation
 - Planning and status tracking is now managed through the spec system in `.kiro/specs/`
 - The previous `docs/plan.md` has been archived due to outdated information
